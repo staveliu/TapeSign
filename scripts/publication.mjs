@@ -12,7 +12,9 @@ export function plan(root){
   for(const f of files){if(!/^(?:assets\/[a-zA-Z0-9_.-]+|client-[a-f0-9]{64}\.html|index\.html|release\.json)$/.test(f.path))throw Error('Unsafe release path');const bytes=fs.readFileSync(path.join(dist,f.path));if(bytes.length!==f.size||sha256(bytes)!==f.sha256)throw Error('Build files changed; rebuild before publication');}
   return {...manifest,files};
 }
-export async function preflight(transport,{requireLive=true}={}){
+// SiteRegistry uploads require a verified container holder, not a paid gateway subscription.
+// Keep subscription evidence visible; requireLive is only for explicit gateway checks.
+export async function preflight(transport,{requireLive=false}={}){
   const n=config.networks.find(n=>n.chainId===196),r=new RpcPair(n,transport),h=await r.pin('latest'),at=toQuantity(h.number);
   await r.attest(at,{publication:true});
   const identity=await r.resolve(config.site,at);
@@ -22,8 +24,8 @@ export async function preflight(transport,{requireLive=true}={}){
   ]);
   const siteLive=containerLive||nameLive;
   if((await r.agree('eth_getBlockByNumber',[at,false],header)).hash!==h.hash)throw Error('Publication preflight snapshot changed');
-  if(requireLive&&!siteLive)throw Error('4.2.204 容器网站订阅未生效，请先在 TapeOut 开通或续期网站');
-  return {identity,siteLive,containerLive,nameLive,paidUntil:String(containerUntil>nameUntil?containerUntil:nameUntil),block:h};
+  if(requireLive&&!siteLive)throw Error('容器已开通，但未查到有效的网站订阅；文件可上传，官方网关展示仍需网站激活');
+  return {identity,opened:true,siteLive,containerLive,nameLive,paidUntil:String(containerUntil>nameUntil?containerUntil:nameUntil),block:h};
 }
 export function classifyFile(file,info,bytes,expected){
   if(bytes.length!==Number(info.size)||bytes.length>file.size) return {conflict:true,reason:'链上文件大小不符'};

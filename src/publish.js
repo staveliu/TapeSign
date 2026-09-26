@@ -6,7 +6,15 @@ const status=m=>$('status').textContent=m,log=m=>$('log').textContent+=m+'\n';
 async function api(route){const r=await fetch('/api/'+route,{cache:'no-store'}),v=await r.json();if(!r.ok)throw Error(v.error||'本机发布 API 失败');return v;}
 function controls(){document.querySelectorAll('button').forEach(b=>b.disabled=busy);$('publish').disabled=busy||!plan;}
 async function action(fn){if(busy)return;busy=true;controls();try{await fn();}catch(e){status(e.message);}finally{busy=false;controls();}}
-async function inspect(){plan=await api('plan');$('release').textContent=JSON.stringify({release:plan.release,site:plan.site,holder:plan.identity.holder,files:plan.files.map(f=>({path:f.path,bytes:f.size})),transactions:plan.transactions.length},null,2);status('容器与发布包已核验。上传需要钱包逐笔确认并支付网络费用。');}
+function subscription(pre){
+  let box=$('subscription');if(!box){box=document.createElement('p');box.id='subscription';box.className='hint';$('release').before(box);}
+  box.textContent=pre.siteLive?'容器已开通 · 网站订阅有效。':'容器已开通，可上传文件 · 未查到有效的网站订阅，官方网关暂不能展示网站。若已为其他域名付费，请先核对或同步原记录，不要重复付费。';
+}
+async function inspect(){
+  plan=undefined;controls();const pre=await api('plan');plan=pre;subscription(pre);
+  $('release').textContent=JSON.stringify({release:plan.release,site:plan.site,chainId:plan.identity.chainId,container:plan.identity.container,holder:plan.identity.holder,siteLive:plan.siteLive,containerLive:plan.containerLive,nameLive:plan.nameLive,paidUntil:plan.paidUntil,checkedBlock:plan.block,files:plan.files.map(f=>({path:f.path,bytes:f.size})),transactions:plan.transactions.length},null,2);
+  status('容器与发布包已核验，可以上传。上传需要钱包逐笔确认并支付网络费用。');
+}
 async function fileState(name,after){for(let i=0;i<20;i++){const state=await api('file-status?name='+encodeURIComponent(name)+(after?'&after='+after:''));if(!state.waiting){if(state.release!==plan.release)throw Error('上传期间构建包发生变化，已停止，请先恢复待确认交易');return state;}status('等待 RPC 同步到刚上传的区块…');await new Promise(r=>setTimeout(r,2000));}throw Error('节点暂未同步，保留上传进度，请稍后继续');}
 async function receipt(hash){const rpc=context().rpc('196');for(let i=0;i<50;i++){const r=await rpc.agree('eth_getTransactionReceipt',[hash],r=>r&&({hash:r.transactionHash.toLowerCase(),status:String(BigInt(r.status)),number:String(BigInt(r.blockNumber)),blockHash:r.blockHash.toLowerCase()}));if(r){if(r.hash!==hash)throw Error('上传交易哈希不符');if(r.status!=='1'){saveLocal('pending-upload',null);throw Error('上传交易执行失败。再次继续会从链上实际内容恢复。');}const h=await rpc.agree('eth_getBlockByNumber',['0x'+BigInt(r.number).toString(16),false],b=>b?.hash?.toLowerCase());if(h!==r.blockHash)throw Error('上传交易区块变化，暂不继续');return r;}status('等待上传交易打包，保留哈希，不会重复上传…');await new Promise(r=>setTimeout(r,2000));}throw Error('交易仍未确认。进度已保存，请稍后继续。');}
 $('inspect').onclick=()=>action(inspect);
@@ -28,8 +36,8 @@ $('publish').onclick=()=>action(async()=>{
   status('文件上传完成。点击“核验最终发布”，等待最终确认后逐文件回读。');
 });
 $('verify').onclick=()=>action(async()=>{
-  const release=await api('release');await api('preflight');
+  const release=await api('release'),pre=await api('preflight');subscription(pre);
   for(const f of release.files){status('最终回读核验 '+f.path);const s=await api('file-status?finalized=1&name='+encodeURIComponent(f.path));if(!s.complete)throw Error('文件尚未最终确认或内容不一致：'+f.path);}
-  saveLocal('published-release',{release:release.release,verifiedAt:Date.now()});status('发布已完成并通过最终回读核验。');$('result').hidden=false;const link=document.createElement('a');link.href='https://4-2-204.tapekit.org/'+release.versionPath;link.textContent='打开已发布版本：4.2.204.tape';link.target='_blank';link.rel='noopener';$('result').replaceChildren(link);
+  saveLocal('published-release',{release:release.release,verifiedAt:Date.now()});status(pre.siteLive?'链上文件已通过最终回读核验，网站订阅有效。':'链上文件已通过最终回读核验；网站订阅尚未生效，官方网关暂不能展示网站。');$('result').hidden=false;const link=document.createElement('a');link.href='https://4-2-204.tapekit.org/'+release.versionPath;link.textContent=pre.siteLive?'打开已发布版本：4.2.204.tape':'官方网关入口（网站订阅生效后可访问）：4.2.204.tape';link.target='_blank';link.rel='noopener';$('result').replaceChildren(link);
 });
 await action(async()=>{const r=await api('release');$('release').textContent=JSON.stringify({release:r.release,files:r.files.map(f=>({path:f.path,bytes:f.size}))},null,2);status('构建包已就绪。先核验容器与发布计划。');const p=readLocal('pending-upload');if(p)$('pending').textContent='待恢复上传：'+JSON.stringify(p);});

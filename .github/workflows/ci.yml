@@ -38,3 +38,4 @@ jobs:
           npm run test:ui
           npm run test:cache-ui
           npm run test:containers
+          node scripts/test-publication-ui.mjs

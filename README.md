@@ -89,6 +89,7 @@ npm run check:public
 npm run test:ui
 npm run test:cache-ui
 npm run test:containers
+node scripts/test-publication-ui.mjs
 ~~~
 
 单元测试覆盖合同号、签名篡改/重放、跨链引用、载荷限制、核验、RPC 回退、游标、缓存和上传续传。浏览器测试使用合成合同并模拟钱包/链边界，不发送主网交易，不代表真实链端到端验收。只读真实合同检查必须主动提供交易哈希，结果保存在被忽略的 .local/ 中。
