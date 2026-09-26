@@ -1,0 +1,119 @@
+{
+  "networks": [
+    {
+      "chainId": 196,
+      "hub": "0xe61a9c7213a6aa616c246a2b569e555b417b25ee",
+      "rpcs": [
+        "https://rpc.xlayer.tech",
+        "https://xlayer-mainnet.rpc.sentio.xyz"
+      ],
+      "factory": "0x1f09daefa827f02cbb40967cc91b259763760761",
+      "opener": "0x536add8f30f03b69f6fbf29d425a816a0dc50106",
+      "beacon": "0xf70d1ed4f62cf3780157b0b421b7e2f45bd0991c",
+      "circuitImplementation": "0x977f217887e085d298cb3819cdad5a0ee35f29b2",
+      "siteRegistry": "0xd6efb7adcc9c83dc4924ad56f6a8e4e969b9adb6",
+      "binding": "0x68809fd2fb343aa57d0aeb7f33defe477c9666f9",
+      "payments": "0x13b8afa4fd1b29b09d23a57a75ba8d3078d44858",
+      "registry": "0x000000006551c19487814612e58fe06813775758",
+      "proxies": [
+        {
+          "role": "hub",
+          "address": "0xe61a9c7213a6aa616c246a2b569e555b417b25ee",
+          "implementation": "0xdcc57797089ebd9f26e686379a4323f353a3f9c6",
+          "proxyHash": "0xcd75f98719e56feb6f178560dab068f0828e8dafd0e9e753b2f6242ab4a05e1a",
+          "codeHash": "0xf97f9432aefd6f305f610fbe6c789a8f4facfc251fcaf39e06d8c1f2c2881b61"
+        },
+        {
+          "role": "factory",
+          "address": "0x1f09daefa827f02cbb40967cc91b259763760761",
+          "implementation": "0x74956236ab64ed143933040b4137e8a352e4d17b",
+          "proxyHash": "0x5cddc08137fc81eb8ba1d37902e77553152c2f639b6bf6f601ecb094e2cae5c8",
+          "codeHash": "0x7fb15e83f925e493ef6e84ee3b1021eed994966552add6011184a1fb3ad7fe81"
+        },
+        {
+          "role": "siteRegistry",
+          "address": "0xd6efb7adcc9c83dc4924ad56f6a8e4e969b9adb6",
+          "implementation": "0xa85c4143d1d4a77f54b8e4ecc9e6d1418afea45f",
+          "proxyHash": "0x5e41d8905a1e7ccfc8c297c3a33d08d1712e4876f9c6eefc0e5991409dd38c1d",
+          "codeHash": "0xec8c29acef66eb1bf973d6e80202258830631b7b2849f75d04365c6f80443e6d"
+        },
+        {
+          "role": "binding",
+          "address": "0x68809fd2fb343aa57d0aeb7f33defe477c9666f9",
+          "implementation": "0x5ebf29b80789e548907c707530c3c7607c4347df",
+          "proxyHash": "0x5e41d8905a1e7ccfc8c297c3a33d08d1712e4876f9c6eefc0e5991409dd38c1d",
+          "codeHash": "0x6cdc2f5fa922b4f73d3e37644b0fcfc6bf153279464581611818cd88ee27aa2d"
+        }
+      ],
+      "codePins": {
+        "0x536add8f30f03b69f6fbf29d425a816a0dc50106": "0xf0c334d8d72983af1c38694dac7a1c83348c0c000cbb987467d2aedee06999fd",
+        "0x13b8afa4fd1b29b09d23a57a75ba8d3078d44858": "0x74108e74ac81372a2e4514ce4bdc8d05200eced769da9b7f926f3f58ab533392",
+        "0x000000006551c19487814612e58fe06813775758": "0xda1d5b06e579f9e42e59b00fbc22939896ecb38dc8830d40de0a2508fecd6735",
+        "0xf70d1ed4f62cf3780157b0b421b7e2f45bd0991c": "0xc7cc9854e1465f48d6d8d6d220c04efa6509939832930be4b04ee7fe86575362",
+        "0xac4f791353ee9f06e2c50ae4c34680d28ea52a57": "0x0d49365f294d31947d1714d936e78c49ad6ddb7107f47e48c9b887909fc0ceb1",
+        "0x977f217887e085d298cb3819cdad5a0ee35f29b2": "0x7a15c353205e5245f40f5f5524542a982a4bb3b9a28476e4f10845163f941b30"
+      },
+      "accountImplementation": "0xac4f791353ee9f06e2c50ae4c34680d28ea52a57",
+      "circuitCodeHash": "0x57aa306fd0be97087da3534e03398f5ff4efd533b5be4e45a405ce86fa6717d5",
+      "hubSealed": false,
+      "factorySealed": false,
+      "checkedBlock": {
+        "hash": "0xe9ee5b74b6bd654b4cfbaed7f462b8cb15de26e159598642d9a8a7c1c18e4b7e",
+        "number": "71363413",
+        "timestamp": "1790132449"
+      },
+      "rpcFallbacks": {}
+    },
+    {
+      "chainId": 56,
+      "hub": "0xe61a9c7213a6aa616c246a2b569e555b417b25ee",
+      "rpcs": [
+        "https://bsc-mainnet.public.blastapi.io",
+        "https://bsc.rpc.sentio.xyz"
+      ],
+      "factory": "0x68224f668083c29e9800be2a646d42d18cedf7e2",
+      "opener": "0x021745de2f42a7839d96f2d3634d0294487d81f1",
+      "beacon": "0xf8d6d8eb894d6971c8976ad8b4971cbefe028156",
+      "circuitImplementation": "0x8e1d125def6d3826c278299273a0760d47626068",
+      "siteRegistry": "0xd006ffdd5ae313b17729621a00999cd3c71ce5e6",
+      "binding": "0x861ee183de2bbe4a6ecf9d15812c123b566a3db7",
+      "payments": "0xc0c643eb9820ef208ea38bb2c8e8377047d9fa4c",
+      "registry": "0x000000006551c19487814612e58fe06813775758",
+      "proxies": [
+        {
+          "role": "hub",
+          "address": "0xe61a9c7213a6aa616c246a2b569e555b417b25ee",
+          "implementation": "0x80afe7b77f2dfd08e9feab7675780bac34a7ee85",
+          "proxyHash": "0xcd75f98719e56feb6f178560dab068f0828e8dafd0e9e753b2f6242ab4a05e1a",
+          "codeHash": "0x5e966bbe12be5d1f0bdbea6e462ccd051c0a817c2fd0b8e5c0b8747e5dd665f2"
+        },
+        {
+          "role": "factory",
+          "address": "0x68224f668083c29e9800be2a646d42d18cedf7e2",
+          "implementation": "0xa68ccf4931d98ad0a4be15ee40542edc0dec6422",
+          "proxyHash": "0xed6b710a769987f50494d713f278817992e3266e45898a990be878efc2fcbbce",
+          "codeHash": "0x2195fb3756356850d8c3cb01568d0180aa7aafa077ea474026af2de5038ef7f4"
+        }
+      ],
+      "codePins": {
+        "0x021745de2f42a7839d96f2d3634d0294487d81f1": "0x6674e7ebd042dbd08c92076fec8425853790c7d3bb961bfbed1c0d30468b407e",
+        "0xc0c643eb9820ef208ea38bb2c8e8377047d9fa4c": "0x02e7dde6b7a1920dc2e0a4c14b453ce2a846cffbb3b671f5b76b675b2e406671",
+        "0x000000006551c19487814612e58fe06813775758": "0xda1d5b06e579f9e42e59b00fbc22939896ecb38dc8830d40de0a2508fecd6735",
+        "0xf8d6d8eb894d6971c8976ad8b4971cbefe028156": "0x964014cd563c5bc62e1f8a3b2995969d6385f25da1e4efa353a01a62e0b75cca",
+        "0xaf4e78a2257c9c5480c2f8310e3b00437260751d": "0x88c3e56b713660b62f2e19f63b83665b8c9fdeff09836a9225cee25d15ff8455",
+        "0x8e1d125def6d3826c278299273a0760d47626068": "0x2ea433839e23b3773b7880d6f1807affb0f648ae98760b9a3b6394879665c345"
+      },
+      "accountImplementation": "0xaf4e78a2257c9c5480c2f8310e3b00437260751d",
+      "circuitCodeHash": "0xd8c4b0216e0aadd615fbd134465b6af060a11769edc7c844d8f14d1b8a783992",
+      "hubSealed": false,
+      "factorySealed": false,
+      "checkedBlock": {
+        "hash": "0x2ae84cba658c7ac43897f2dc95182eeda851b4fd35dff98b40788ed67fdff593",
+        "number": "123489457",
+        "timestamp": "1790132467"
+      },
+      "rpcFallbacks": {}
+    }
+  ],
+  "site": "4.2.204.tape"
+}

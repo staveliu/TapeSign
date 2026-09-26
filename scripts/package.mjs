@@ -1,0 +1,16 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+import {sha256} from './release.mjs';
+import './check-public.mjs';
+if(process.exitCode)throw Error('Public source check failed');
+const root=fileURLToPath(new URL('../',import.meta.url));
+const release=JSON.parse(fs.readFileSync(path.join(root,'dist/release.json'),'utf8'));
+const out=path.join(root,'release',release.release.slice(2,14));fs.mkdirSync(out,{recursive:true});
+for(const dir of ['src','config','scripts','server','test','docs','dist'])fs.cpSync(path.join(root,dir),path.join(out,dir),{recursive:true,filter:file=>!file.endsWith('cache.bundle.mjs')});
+for(const file of ['README.md','LICENSE','SECURITY.md','CONTRIBUTING.md','THIRD_PARTY_NOTICES.md','package.json','package-lock.json','index.html','publish.html','.gitignore','.gitattributes'])fs.copyFileSync(path.join(root,file),path.join(out,file));
+const portable=path.join(root,'.local',`TapeSign-${release.release.slice(2,14)}-standalone.html`);
+if(fs.existsSync(portable))fs.copyFileSync(portable,path.join(out,'TapeSign-standalone.html'));
+const files=[];function walk(dir){for(const e of fs.readdirSync(dir,{withFileTypes:true})){const file=path.join(dir,e.name);if(e.isDirectory())walk(file);else files.push({path:path.relative(out,file).split(path.sep).join('/'),size:fs.statSync(file).size,sha256:sha256(fs.readFileSync(file))});}}walk(out);
+fs.writeFileSync(path.join(out,'CHECKSUMS.json'),JSON.stringify({release:release.release,files},null,2)+'\n');
+console.log(out);

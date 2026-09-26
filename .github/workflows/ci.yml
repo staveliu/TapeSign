@@ -1,0 +1,40 @@
+name: Source checks
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run check:public
+      - run: npm test
+      - run: npm run build
+      - run: npm run build:cache
+      - run: npx playwright install --with-deps chromium
+      - name: Browser tests (synthetic wallet and chain)
+        env:
+          PLAYWRIGHT_CHANNEL: chromium
+        shell: bash
+        run: |
+          mkdir -p .local
+          npm run dev > .local/dev.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          ready=0
+          for attempt in {1..30}; do
+            if curl --silent --fail http://127.0.0.1:18740/ > /dev/null; then ready=1; break; fi
+            sleep 1
+          done
+          if [ "$ready" -ne 1 ]; then cat .local/dev.log; exit 1; fi
+          npm run test:ui
+          npm run test:cache-ui
+          npm run test:containers
