@@ -1,6 +1,6 @@
 # TAPESIGN-2 协议
 
-应用版本 0.1.0、合同协议 TAPESIGN-2 和清单格式 TAPESIGN-RELEASE-1 是不同概念。本说明对应 src/protocol.js、src/reader.js 及相关模块。
+应用版本 0.2.0、合同协议 TAPESIGN-2 和清单格式 TAPESIGN-RELEASE-1 是不同概念。本说明对应 src/protocol.js、src/reader.js 及相关模块，仅描述双方合同签署的技术协议；操作流程见 [签约指南](CONTRACTS.md)，TAPESIGN-NOTARY-1 内容公证协议见 [公证指南](NOTARY.md)。
 
 ## 编码与正文
 

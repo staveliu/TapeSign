@@ -10,7 +10,7 @@ npm test
 npm run build
 ~~~
 
-部署整个 dist/，包括 index.html、assets/、client-<release>.html 和 release.json，保持相对目录。客户端无需业务后端，缓存为可选服务。本地开发服务只监听回环地址，不能作为公网生产服务器。
+部署整个 dist/，包括 index.html、assets/、client-<release>.html 和 release.json，保持相对目录。页面本身是静态客户端；合同的缓存加速为可选，**当前公证发布则需要可用的缓存服务完成发布前查重与后台核验**。开源默认 `cacheOrigin` 为空，完整启用两项功能前应配置下文的缓存服务并重新构建。本地开发服务只监听回环地址，不能作为公网生产服务器。
 
 构建同时生成 .local/TapeSign-<release>-standalone.html。通过本地 HTTP 服务打开独立副本；钱包可能不允许 file://。保留可信版本清单，核验链原件仍需可用 RPC。
 
@@ -61,7 +61,9 @@ node server/cache.bundle.mjs
 
 访问 http://127.0.0.1:18741/health。构建需 Node.js 22.12+，生成的自包含服务以 Node.js 20 为目标；新部署建议使用与构建一致的版本。服务不需要钱包密钥。
 
-合同首次扫描不重放全链历史。已知旧合同可通过 POST /notify 提交 chainId 与 tx 定位，经核验后进入索引。公证则独立扫描完整公共公证信箱，持久保存声明及原件；新增 `/notary/list`、`/notary/transaction/:chain/:tx` 和 `/notary/notify`，见 [公证说明](NOTARY.md)。
+合同首次扫描不重放全链历史。已知旧合同可通过 POST /notify 提交 chainId 与 tx 定位，经核验后进入索引。公证则独立扫描两条支持链的公共公证信箱，并持久保存已核验证据与透明原件；非透明模式仅保存声明元数据，不接收原件。
+
+公证使用 `GET /notary/check` 查重、`POST /notary/submit` 提交签名预览和交易定位，后台持久队列继续链上核验；另提供 `GET /notary/list`、`GET /notary/transaction/:chain/:tx` 和 `POST /notary/notify`。已核验记录、未核验预览及队列分开存储，具体字段见 [公证说明](NOTARY.md)。
 
 另开终端，将 TAPESIGN_CACHE_ORIGIN 设为 http://127.0.0.1:18741，然后 npm run dev，即可通过同源 /cache 使用本地缓存。
 
@@ -93,19 +95,21 @@ location /tapesign/ {
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_connect_timeout 5s;
     proxy_read_timeout 30s;
-    client_max_body_size 2k;
+    client_max_body_size 40k;
 }
 ~~~
 
-proxy_pass 末尾斜杠移除 /tapesign/ 前缀。缓存默认监听回环，只信任本机代理转发 IP。不需向公网开放 18741。
+proxy_pass 末尾斜杠移除 /tapesign/ 前缀。缓存默认监听回环，只信任本机代理转发 IP。不需向公网开放 18741。`/notary/submit` 的签名预览请求可能超过旧合同通知的 2 KiB 限制，因此代理允许 40 KiB，服务端仍执行 40,000 字节上限及结构、签名检查。非透明原件不通过此接口上传。
 
-将 config/app.json 的 cacheOrigin 设为 https://cache.example.com/tapesign（无末尾斜杠），重新构建、发布客户端。验证 /tapesign/health、/contracts、/transaction、/latest 与 /notary/list；health.notary 提供公证记录数和两链扫描状态。
+将 config/app.json 的 cacheOrigin 设为 https://cache.example.com/tapesign（无末尾斜杠），重新构建、发布客户端。检查 `/tapesign/health`，再按 [合同缓存 API](CACHE-V2.md) 与 [公证 API](NOTARY.md) 携带有效参数验证查询、查重及通知；`health.notary` 提供公证记录数、待核验数量和两链扫描状态。不要用真实私人原件做部署测试。
 
 ## 运维与排错
 
 - 停止服务后备份整个 /var/lib/tapesign-cache，再恢复服务；需同时保留合同、队列、监控与游标。
 - health.contracts 是交易记录数，不是唯一合同数；queued、jobs、lastError 用于检查积压。
 - 缓存预览可见但不能归档，表示独立链核验尚未成功；检查具体链、方法和节点。
+- 公证显示“RPC 缓存已核验 · 链上未核验”是发布后的待核验状态；查看 `health.notary` 队列与扫描错误，不要因此重复发送。
+- 公证通知出现 HTTP 413 时检查代理请求体限制；旧的 `client_max_body_size 2k` 不能承载较大的签名预览请求。
 - HTTP 502 检查反向代理及服务；archive token/403/missing trie node 需归档节点。改 RPC 后重建服务和客户端，不得绕过证据核验。
 - 通知、信箱监控和扫描分别调度，但仍受 RPC 能力影响，不保证固定延迟。
 - V1 使用原客户端；本仓库不包含生产数据迁移工具。
