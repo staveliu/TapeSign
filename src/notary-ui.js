@@ -77,6 +77,7 @@ export function setupNotary(){
   const selected=useCache?cachedPage:local.rows,total=useCache?cachedTotal:local.total,pages=Math.max(1,Math.ceil(total/12));
   if(page>pages&&(audit?.complete||cacheMatches)){page=pages;void refreshCache();return;}
   $('notary-cards').replaceChildren();
+  if(!selected.length){const empty=document.createElement('p');empty.className='card hint';empty.dataset.notaryEmpty='true';empty.textContent=cacheError?'缓存暂不可用，尚不能确认是否存在匹配公证；可稍后刷新或手动独立核验。':cachedView===JSON.stringify(opts)?'当前没有匹配的完整公证记录。扫描进度统计信箱消息（包括图片分块），不代表完整公证数量。若之前只提交了部分图片分块，请返回“内容公证”继续原来的公证，最后还需签署并提交公证声明。':'正在加载缓存中的公证记录…';$('notary-cards').append(empty);}
   for(const row of selected){const entry=entries.get(notaryKey(row.location));if(!entry)continue;const card=document.createElement('article');card.className='card notary-record';card.dataset.notaryId=row.id;
    const badge=document.createElement('span');badge.className='badge';badge.textContent=statusText(entry);
    const title=document.createElement('h3');title.textContent=row.id;const owner=document.createElement('p');owner.textContent='声明容器 '+row.owner.replace(/\.tape$/,'');const date=document.createElement('p');date.className='hint';date.textContent=(entry.bundle?'链上时间 ':'声明时间（尚未链上核验） ')+new Date(row.timestamp).toLocaleString()+' · 链 '+row.location.chainId;
@@ -85,7 +86,7 @@ export function setupNotary(){
   $('notary-page').textContent='第 '+page+' / '+pages+' 页 · '+(audit?.complete?'独立核验快照':'目前可见')+' '+total+' 条';$('notary-prev').disabled=page<=1;$('notary-next').disabled=page>=pages;
   if(tab==='search')$('notary-query-result').textContent=!searchHash?'请先输入内容并查询。':total?'找到 '+total+' 条相同内容的归属声明，请查看各条链上核验状态。':audit?.complete?'截至手动核验快照，未发现相同 SHA-256 的有效公证。':'缓存尚未收录相同内容；服务器继续核验，不能据此断言全链没有公证。';
   const states=audit?.states||Object.entries(cacheScans).map(([chain,s])=>({chain,...s}));
-  $('notary-audit').textContent=(audit?'手动独立核验快照。':'缓存优先展示，服务器后台核验。')+states.map(s=>' 链 '+s.chain+'：'+(s.checked||0)+'/'+(s.total||0)+(s.complete?'，已比对至区块 '+s.head.number:s.error?'，后台重试中':'，处理中')).join('；');
+  $('notary-audit').textContent=(audit?'手动独立核验快照。':'缓存优先展示，服务器后台核验。')+states.map(s=>' 链 '+s.chain+'：已核对 '+(s.checked||0)+'/'+(s.total||0)+' 条信箱消息（含分块）'+(s.complete?'，已比对至区块 '+s.head.number:s.error?'，后台重试中':'，处理中')).join('；');
   if(cacheError)$('notary-audit').textContent+=' 缓存暂不可用，保留本机记录；可手动独立核验。';
  }
  async function refreshCache(){
@@ -149,7 +150,7 @@ export function setupNotary(){
  $('notary-kind').onchange=()=>{$('notary-text-label').hidden=$('notary-text').hidden=$('notary-kind').value!=='text';$('notary-file-label').hidden=$('notary-kind').value!=='image';};
  $('notary-query-kind').onchange=()=>{$('notary-query-text').hidden=$('notary-query-kind').value!=='text';$('notary-query-file').hidden=$('notary-query-kind').value!=='image';};
  $('notary-query').onclick=()=>action(async()=>{const v=await input('notary-query-kind','notary-query-text','notary-query-file');searchHash=describeContent(v.value,v.kind).hash;page=1;$('notary-query-hash').textContent=searchHash;await refreshCache();});
- function setTab(name){tab=name;page=1;for(const id of ['create','search','public'])$('notary-'+id).hidden=id!==name;document.querySelectorAll('[data-notary-tab]').forEach(b=>b.classList.toggle('active',b.dataset.notaryTab===name));$('notary-results').hidden=name==='create';if(name!=='create')void refreshCache();render();}
+ function setTab(name){tab=name;page=1;for(const id of ['create','search','public'])$('notary-'+id).hidden=id!==name;document.querySelectorAll('[data-notary-tab]').forEach(b=>b.classList.toggle('active',b.dataset.notaryTab===name));$('notary-results').hidden=name==='create';if(!busy)note(name==='public'?'公开列表由缓存快速提供，服务器在后台核验，状态自动更新。':name==='search'?'在本机计算内容哈希，从缓存查询公证及链上核验状态。':'选择透明或非透明方式，缓存查重后提交，服务器后台核验。');if(name!=='create')void refreshCache();render();}
  document.querySelectorAll('[data-notary-tab]').forEach(b=>b.onclick=()=>setTab(b.dataset.notaryTab));
  for(const id of ['notary-filter','notary-sort','notary-mine'])$(id).onchange=()=>{if(id==='notary-mine'&&$('notary-mine').checked&&!currentContainer()){$('notary-mine').checked=false;note('请先在顶部选择容器',true);return;}page=1;void refreshCache();render();};
  $('notary-prev').onclick=()=>{page=Math.max(1,page-1);void refreshCache();render();};$('notary-next').onclick=()=>{page++;void refreshCache();render();};$('notary-refresh').onclick=()=>{audit=null;void refreshCache();};$('notary-independent').onclick=()=>void runAudit();$('notary-detail-close').onclick=()=>{$('notary-detail').hidden=true;lastLocation=null;viewEpoch++;};
