@@ -8,7 +8,8 @@ export function cacheBase(){
 }
 export async function cacheRequest(path, options={}){
   const base=cacheBase();if(!base)throw Error('缓存不可用');
-  const res=await fetch(base+path,{...options,headers:{...(options.body?{'Content-Type':'application/json'}:{}),...options.headers},signal:AbortSignal.timeout(6500),cache:'no-store'});
+  const timeout=AbortSignal.timeout(6500),signal=options.signal?AbortSignal.any([options.signal,timeout]):timeout;
+  const res=await fetch(base+path,{...options,headers:{...(options.body?{'Content-Type':'application/json'}:{}),...options.headers},signal,cache:'no-store'});
   if(!res.ok)throw Error('缓存暂不可用');return res.json();
 }
 export function notifyTransaction(value){

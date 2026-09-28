@@ -40,7 +40,7 @@ export async function scanNotaryChain(chain,{ctx=context(),onUpdate=()=>{},signa
  check();if((await rpc.agree('eth_getBlockByNumber',[at,false],header)).hash!==head.hash)throw Error('公证全量查询期间区块变化');await ctx.assert();
  const result={chain,total,checked,rows,bundles,invalid,complete:true,head,checkedAt:Date.now()};onUpdate(result);return result;
 }
-export async function auditNotary({makeContext=()=>context(),onUpdate=()=>{},signal,chains=['196','56']}={}){
+export async function auditNotary({makeContext=()=>context(undefined,()=>{},{signal}),onUpdate=()=>{},signal,chains=['196','56']}={}){
  const states=new Map(),emit=()=>onUpdate({states:[...states.values()],complete:false});
  const results=await Promise.allSettled(chains.map(async chain=>{try{return await scanNotaryChain(chain,{ctx:makeContext(),signal,onUpdate:s=>{states.set(chain,s);emit();}});}catch(e){states.set(chain,{...(states.get(chain)||{chain,total:0,checked:0,rows:[]}),complete:false,error:e.message});emit();throw e;}}));
  if(signal?.aborted)throw new DOMException('查询已取消','AbortError');

@@ -17,12 +17,12 @@ const send = async (url, body) => {
   } catch(e) { throw rpcUnavailable(e.message,{method:body.method}); }
 };
 const transport = local ? send : withRpcFallback(config.networks, send);
-export function context(customTransport = transport, onProgress = ()=>{}) {
+export function context(customTransport = transport, onProgress = ()=>{}, {signal} = {}) {
   const clients = new Map(), heads = new Map(), records = new Map();
   function rpc(chain) {
     const n = config.networks.find(n=>String(n.chainId) === String(chain));
     if (!n) throw Error('不支持的区块链');
-    if (!clients.has(String(chain))) clients.set(String(chain), new RpcPair(n, customTransport));
+    if (!clients.has(String(chain))) clients.set(String(chain), new RpcPair(n, async(url,body)=>{signal?.throwIfAborted();const result=await customTransport(url,body);signal?.throwIfAborted();return result;}));
     return clients.get(String(chain));
   }
   function head(chain, tag = 'finalized') {

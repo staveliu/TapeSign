@@ -3,12 +3,12 @@ import {isIP} from 'node:net';
 import {Store} from './store.mjs';
 import {ContractCache} from './service.mjs';
 import {NotaryCache} from './notary.mjs';
-import {config} from '../src/rpc.js';
+import {config,context} from '../src/rpc.js';
 import {withRpcFallback} from '../src/vendor/rpc-fallback.js';
 import {readRpcResponse} from '../src/rpc-http.js';
 const upstream=withRpcFallback(config.networks,async(url,body)=>readRpcResponse(await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(7000)}),body.method));
 const service=new ContractCache(new Store(process.env.TAPESIGN_CACHE_DIR||'/var/lib/tapesign-cache'),upstream);
-const notary=new NotaryCache(service.store,()=>service.ctx());
+const notary=new NotaryCache(service.store,({signal}={})=>context(async(url,body)=>{signal?.throwIfAborted();const result=await service.rpc.request(url,body);signal?.throwIfAborted();return result;}));
 const rate=new Map();
 function allowed(ip){const now=Date.now(),r=rate.get(ip);if(!r||now-r.time>60000){rate.set(ip,{time:now,count:1});return true;}return ++r.count<=120;}
 const server=http.createServer(async(req,res)=>{
@@ -20,6 +20,8 @@ const server=http.createServer(async(req,res)=>{
   if(!allowed(clientIp))return reply(429,{error:'请求过多，请稍后重试'});
   try{const url=new URL(req.url,'http://localhost');
     if(req.method==='GET'&&['/','/health'].includes(url.pathname))return reply(200,{...service.health(),notary:notary.health()});
+    if(req.method==='GET'&&url.pathname==='/notary/check')return reply(200,notary.check({hash:url.searchParams.get('hash')||'',id:url.searchParams.get('id')||'',owner:url.searchParams.get('owner')||''}));
+    if(req.method==='POST'&&url.pathname==='/notary/submit'){let raw='';for await(const chunk of req){raw+=chunk;if(Buffer.byteLength(raw)>40000)return reply(413,{error:'请求过大'});}return reply(202,notary.submit(JSON.parse(raw)));}
     if(req.method==='GET'&&url.pathname==='/notary/list')return reply(200,notary.list({hash:url.searchParams.get('hash')||'',owner:url.searchParams.get('owner')||'',q:url.searchParams.get('q')||'',sort:url.searchParams.get('sort')||'desc',page:Number(url.searchParams.get('page')||1),pageSize:Number(url.searchParams.get('pageSize')||12)}));
     const nm=/^\/notary\/transaction\/(56|196)\/(0x[0-9a-f]{64})$/.exec(url.pathname);
     if(req.method==='GET'&&nm)return reply(200,notary.transaction({chainId:nm[1],tx:nm[2]}));
