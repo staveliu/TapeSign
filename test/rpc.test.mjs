@@ -61,6 +61,20 @@ test('两个成功响应不一致时仍拒绝，不以第三节点覆盖分歧',
   assert.throws(()=>withRpcFallback([{...network,rpcFallbacks:{[primary]:[independent]}}],()=>{}),/independent/);
 });
 
+test('a missing receipt in one independent slot waits without accepting the other vote',async()=>{
+ const receipt={transactionHash:'0x123',blockHash:'0xabc',status:'0x1'};let synced=false;
+ const rpc=new RpcPair(network,async url=>({result:url===independent&&!synced?null:receipt}));
+ for(const method of ['eth_getTransactionReceipt','eth_getTransactionByHash'])await assert.rejects(()=>rpc.agree(method,['0x123'],x=>x),e=>e.code==='RPC_SYNC_PENDING'&&e.method===method);
+ synced=true;assert.deepEqual(await rpc.agree('eth_getTransactionReceipt',['0x123'],x=>x),receipt);
+});
+
+test('conflicting nonempty receipts remain evidence disagreements, not sync waits',async()=>{
+ const rpc=new RpcPair(network,async url=>({result:{transactionHash:'0x123',blockHash:url===primary?'0xaaa':'0xbbb',status:'0x1'}}));
+ await assert.rejects(()=>rpc.agree('eth_getTransactionReceipt',['0x123'],x=>x),e=>e.code==='RPC_DISAGREEMENT');
+ const empty=new RpcPair(network,async()=>({result:null}));assert.equal(await empty.agree('eth_getTransactionReceipt',['0x123'],x=>x),null);
+ const call=new RpcPair(network,async url=>({result:url===primary?null:'0x01'}));await assert.rejects(()=>call.agree('eth_call',[],x=>x),e=>e.code==='RPC_DISAGREEMENT');
+});
+
 test('范围日志限流不禁用回执、历史状态及单区块日志能力',async()=>{
   const calls=[],transport=withRpcFallback([network],async(url,body)=>{
     calls.push([url,body.method]);

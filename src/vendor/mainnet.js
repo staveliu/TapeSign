@@ -74,7 +74,11 @@ export class RpcPair {
     const failure = results.find(r => r.status === 'rejected');
     if (failure) throw failure.reason;
     const values = results.map(r => r.value);
-    if (values.length < 2 || values.some(v => !same(v, values[0]))) throw Error(`Independent RPC disagreement: ${method}`);
+    if(values.length>=2&&values.some(v=>v===null)&&values.some(v=>v!==null)&&['eth_getTransactionReceipt','eth_getTransactionByHash'].includes(method)){
+      const present=values.filter(v=>v!==null);
+      if(present.every(v=>same(v,present[0])))throw Object.assign(Error('部分节点已读到交易，另一节点尚未同步；正在等待一致回执，无需再次发送'),{code:'RPC_SYNC_PENDING',method});
+    }
+    if (values.length < 2 || values.some(v => !same(v, values[0]))) throw Object.assign(Error(`Independent RPC disagreement: ${method}`),{code:'RPC_DISAGREEMENT',method});
     return values[0];
   }
   async pin(tag = 'finalized') {

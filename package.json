@@ -1,6 +1,6 @@
 {
   "name": "tapesign",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -13,7 +13,9 @@
     "test:cache-ui": "node scripts/test-cache-ui.mjs",
     "check:chain": "node scripts/check-chain.mjs",
     "package": "node scripts/package.mjs",
-    "check:public": "node scripts/check-public.mjs"
+    "check:public": "node scripts/check-public.mjs",
+    "test:notary": "node scripts/test-notary-ui.mjs",
+    "test:activation": "node scripts/test-activation-ui.mjs"
   },
   "dependencies": {
     "ethers": "6.15.0"
@@ -26,7 +28,7 @@
   "engines": {
     "node": ">=22.12"
   },
-  "description": "Two-party electronic contracts on TapeOut with handwritten signatures and independent chain verification",
+  "description": "TapeOut contracts and content notarization with shared container identity, handwritten signatures and independent chain verification",
   "license": "MIT",
   "repository": {
     "type": "git",

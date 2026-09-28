@@ -30,6 +30,19 @@ npm run build 不发交易；发布工作台依赖本地 API，不在公开 dist
 
 发布工作台分别展示容器身份与网站订阅状态。网站订阅未生效时，仍可上传、续传并最终回读文件，但不能宣称官方网关已经可访问。为其他域名付费且容器级记录有效也算激活；较旧的域名付费记录可先核对 DomainBinding.syncContainer，再决定是否需要续费。订阅读取失败、代码变化、持有人异常或 RPC 分歧不会被忽略。
 
+## 激活网站订阅
+
+文件已通过最终回读核验后，不需要重新构建或上传。打开发布工作台里的“核对并激活网站”，或本地 `http://127.0.0.1:18740/activate.html`。
+
+1. 页面从两个独立 RPC 核对 X Layer（196）上的容器持有人、合约代码、订阅状态及 `monthlyFee()`。已生效时禁用付款按钮。
+2. 如果以前给同一容器的其他域名付过费，输入原完整域名，点“重新核对状态与费用”。存在未过期记录时，可点“核对并同步已有付费”，调用 `syncContainer(domain, container)`；订阅费为零，钱包仍需支付 gas。
+3. 若没有有效记录，选择开通时长，点“钱包确认开通”，连接该容器持有人钱包。页面调用 `bind(name, container, months)`，金额为实时月费乘以期数，另加 gas；每期 30 天，以页面和钱包报价为准。
+4. 钱包提交后页面每 10 秒重新查询，不保证 RPC 或最终确认在固定时间完成。出现“网站订阅已生效”后打开网站；网关仍显示旧状态时稍后刷新。
+
+页面在广播前保存待确认意图，提交后保存交易哈希，刷新和多标签页不会自动再次付款。拒绝钱包确认可以重新核对；钱包断开且没有返回哈希时，先检查钱包活动与链上状态，不要清除浏览器待确认记录后盲目重发。已提交交易只有在最终确认后才结束待确认状态。
+
+激活页仅由本地开发服务提供，使用浏览器钱包签署；不收集私钥，不改变已经发布的合同客户端。费用不是写死在源码里的价格。
+
 ## 本地缓存服务
 
 ~~~sh
@@ -48,7 +61,7 @@ node server/cache.bundle.mjs
 
 访问 http://127.0.0.1:18741/health。构建需 Node.js 22.12+，生成的自包含服务以 Node.js 20 为目标；新部署建议使用与构建一致的版本。服务不需要钱包密钥。
 
-首次扫描不重放全链历史。已知旧合同可通过 POST /notify 提交 chainId 与 tx 定位，经核验后进入索引。
+合同首次扫描不重放全链历史。已知旧合同可通过 POST /notify 提交 chainId 与 tx 定位，经核验后进入索引。公证则独立扫描完整公共公证信箱，持久保存声明及原件；新增 `/notary/list`、`/notary/transaction/:chain/:tx` 和 `/notary/notify`，见 [公证说明](NOTARY.md)。
 
 另开终端，将 TAPESIGN_CACHE_ORIGIN 设为 http://127.0.0.1:18741，然后 npm run dev，即可通过同源 /cache 使用本地缓存。
 
@@ -86,7 +99,7 @@ location /tapesign/ {
 
 proxy_pass 末尾斜杠移除 /tapesign/ 前缀。缓存默认监听回环，只信任本机代理转发 IP。不需向公网开放 18741。
 
-将 config/app.json 的 cacheOrigin 设为 https://cache.example.com/tapesign（无末尾斜杠），重新构建、发布客户端。验证 /tapesign/health、/contracts、/transaction 与 /latest。
+将 config/app.json 的 cacheOrigin 设为 https://cache.example.com/tapesign（无末尾斜杠），重新构建、发布客户端。验证 /tapesign/health、/contracts、/transaction、/latest 与 /notary/list；health.notary 提供公证记录数和两链扫描状态。
 
 ## 运维与排错
 

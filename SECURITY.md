@@ -4,7 +4,7 @@
 
 Report reproducible security issues privately using GitHub's **Security → Report a vulnerability** when private vulnerability reporting is enabled for this repository. If that option is unavailable, open an issue asking for a private reporting channel without including exploit details, credentials, contract contents, signatures or personal information. Do not post sensitive evidence publicly.
 
-Only the current TAPESIGN-2 implementation is maintained here. V1 records require their original client. This project has not received an independent security audit.
+The current TAPESIGN-2 contract and TAPESIGN-NOTARY-1 content declaration protocols are maintained here. V1 contracts require their original client. This project has not received an independent security audit.
 
 ## Trust model
 
@@ -17,6 +17,10 @@ Only the current TAPESIGN-2 implementation is maintained here. V1 records requir
 ## Public data and secrets
 
 Contract text, parties, handwritten strokes and wallet signatures are public on chain. There is no encryption or deletion facility. Use synthetic content for testing.
+
+Transparent notarizations publish original text/image bytes and SHA-256. Nontransparent notarizations publish the hash, container identity, declaration metadata and signature; originals are neither sent to the cache nor placed on chain. Hashes still permit matching known or guessed content. A notarization records the holder's claim and block time; it does not adjudicate ownership. Preserve originals for nontransparent claims.
+
+The public notarization mailbox is enumerated independently by the client. Cache previews are not finalized chain evidence. An unavailable chain, incomplete page or conflicting snapshot prevents a complete audit result. Chunked uploads preserve transaction hashes across reloads, and uncertain wallet outcomes require recovery before continuing.
 
 Never commit private keys, seed phrases, RPC credentials, SSH credentials, production logs, cache databases, real contract screenshots or evidence files. Test wallets in test/fixture.mjs are deliberately deterministic and have no relationship to real accounts; never fund them.
 

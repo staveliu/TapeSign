@@ -17,8 +17,8 @@ const server=await createServer({configFile:false,root,base:'/',publicDir:false,
     if(req.headers.host!==`127.0.0.1:${port}`||(req.headers.origin&&req.headers.origin!==origin))return reply(403,{error:'Origin rejected'});
     if(url.pathname.startsWith('/cache/')){
       const route=url.pathname.slice(6);
-      if(!['GET','POST'].includes(req.method)||!(/^\/(health|contracts|notify)$/.test(route)||/^\/(transaction|latest)\/(56|196)\/0x[0-9a-f]{64}$/.test(route)))return reply(400,{error:'Unknown cache route'});
-      if(req.method==='POST'&&(route!=='/notify'||req.headers.origin!==origin))return reply(403,{error:'Same-origin notification required'});
+      if(!['GET','POST'].includes(req.method)||!(/^\/(health|contracts|notify)$/.test(route)||/^\/(transaction|latest)\/(56|196)\/0x[0-9a-f]{64}$/.test(route)||/^\/notary\/(list|notify)$/.test(route)||/^\/notary\/transaction\/(56|196)\/0x[0-9a-f]{64}$/.test(route)))return reply(400,{error:'Unknown cache route'});
+      if(req.method==='POST'&&(!['/notify','/notary/notify'].includes(route)||req.headers.origin!==origin))return reply(403,{error:'Same-origin notification required'});
       let body='';if(req.method==='POST')for await(const chunk of req){body+=chunk;if(body.length>1024)return reply(413,{error:'Too large'});}
       const response=await net.cache(route+url.search,{method:req.method,...(body?{headers:{'Content-Type':'application/json'},data:body}:{})});
       return reply(response.status(),await response.json());

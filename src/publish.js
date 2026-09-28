@@ -9,6 +9,7 @@ async function action(fn){if(busy)return;busy=true;controls();try{await fn();}ca
 function subscription(pre){
   let box=$('subscription');if(!box){box=document.createElement('p');box.id='subscription';box.className='hint';$('release').before(box);}
   box.textContent=pre.siteLive?'容器已开通 · 网站订阅有效。':'容器已开通，可上传文件 · 未查到有效的网站订阅，官方网关暂不能展示网站。若已为其他域名付费，请先核对或同步原记录，不要重复付费。';
+  if(!pre.siteLive){const link=document.createElement('a');link.href='/activate.html';link.textContent=' 核对并激活网站 →';box.append(link);}
 }
 async function inspect(){
   plan=undefined;controls();const pre=await api('plan');plan=pre;subscription(pre);

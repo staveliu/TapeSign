@@ -21,6 +21,7 @@ try{
   await page.locator('#inspect').click();await page.waitForFunction(()=>!document.querySelector('#publish').disabled);
   assert.match(await page.locator('#subscription').textContent(),/可上传文件/);
   assert.match(await page.locator('#subscription').textContent(),/官方网关暂不能展示/);
+  assert.equal(await page.locator('#subscription a').getAttribute('href'),'/activate.html');
   assert.equal(JSON.parse(await page.locator('#release').textContent()).siteLive,false);
   page.once('dialog',dialog=>dialog.dismiss());await page.locator('#publish').click();await page.waitForFunction(()=>!document.querySelector('#inspect').disabled);assert.equal(planCalls,2);
   await page.locator('#verify').click();await page.waitForFunction(()=>!document.querySelector('#result').hidden);

@@ -1,5 +1,5 @@
-import {chromium} from 'playwright';
 import {browserOptions,testBase} from './browser.mjs';
+import {chromium} from 'playwright';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {fixture} from '../test/fixture.mjs';
@@ -35,7 +35,7 @@ try{
   await page.goto(base);await page.waitForFunction(()=>document.querySelector('#body-count').textContent.includes('字节'));
   assert.equal(await page.locator('#title').inputValue(),'');assert.equal(await page.locator('#my-container').inputValue(),'');
   await page.screenshot({path:'.local/home-desktop.png',fullPage:true});
-  await page.locator('#sample').click();await page.locator('#my-container').fill('1.2.204');await page.locator('#other-container').fill('2.2.204');
+  await page.locator('#sample').click();await page.evaluate(async()=>{(await import('/src/current-container.js')).setCurrentContainer('1.2.204');});await page.locator('#other-container').fill('2.2.204');
   await page.locator('#my-role').selectOption('B');assert.equal(await page.locator('#other-role').textContent(),'甲方');
   await page.locator('#review').click();await page.waitForFunction(()=>!document.querySelector('#sign-panel').hidden).catch(async e=>{console.error(await page.locator('#status').textContent(),errors);throw e;});
   assert.match(await page.locator('#sign-role').textContent(),/乙方/);assert.equal(await page.locator('#submit-sign').isDisabled(),true);
@@ -45,12 +45,12 @@ try{
   await page.evaluate(()=>window.rejectWallet=false);await page.locator('#submit-sign').click();await page.waitForFunction(()=>!document.querySelector('#share-panel').hidden);
   assert.equal(await page.locator('#sign-panel').isVisible(),false);assert.match(await page.locator('#share-url').inputValue(),/chain=196&tx=0x/);assert.ok((await page.evaluate(()=>window.lastInk)).length>0);
   await page.locator('#check-submitted').click();await page.waitForFunction(()=>document.querySelector('#contract-status').textContent.includes('等待对方签署'));
-  await draw(page);await page.locator('#agree').check();await page.locator('#submit-sign').click();await page.waitForFunction(()=>document.querySelector('#share-title').textContent.includes('回签')).catch(async e=>{console.error('accept failed',await page.locator('#status').textContent(),await page.locator('#share-title').textContent(),errors);throw e;});assert.equal(await page.evaluate(()=>window.accepts),1);
-  await page.locator('#check-submitted').click();await page.waitForSelector('#seal');await page.locator('#seal').click();await page.waitForFunction(()=>document.querySelector('#share-title').textContent.includes('归档'));assert.equal(await page.evaluate(()=>window.seals),1);
+  await page.evaluate(async()=>{(await import('/src/current-container.js')).setCurrentContainer('2.2.204');});await draw(page);await page.locator('#agree').check();await page.locator('#submit-sign').click();await page.waitForFunction(()=>document.querySelector('#share-title').textContent.includes('回签')).catch(async e=>{console.error('accept failed',await page.locator('#status').textContent(),await page.locator('#share-title').textContent(),errors);throw e;});assert.equal(await page.evaluate(()=>window.accepts),1);
+  await page.locator('#check-submitted').click();await page.waitForSelector('#seal');await page.evaluate(async()=>{(await import('/src/current-container.js')).setCurrentContainer('1.2.204');});await page.locator('#seal').click();await page.waitForFunction(()=>document.querySelector('#share-title').textContent.includes('归档'));assert.equal(await page.evaluate(()=>window.seals),1);
   await page.locator('#check-submitted').click();await page.waitForFunction(()=>document.querySelector('#contract-status').textContent.includes('链上归档'));assert.equal(await page.locator('#existing-signatures canvas').count(),2);assert.equal(await page.locator('#sign-panel').isVisible(),false);
   await page.screenshot({path:'.local/contract-desktop.png',fullPage:true});
   const download=page.waitForEvent('download');await page.locator('#export').click();assert.equal((await download).suggestedFilename(),f.doc.contractId+'.json');
-  await page.locator('#tab-history').click();await page.locator('#history-container').fill('1.2.204');await page.locator('#sync').click();await page.waitForFunction(()=>document.querySelector('#index-progress').textContent.includes('1000000'));assert.equal(await page.evaluate(()=>window.syncs),1);
+  await page.locator('#tab-history').click();await page.waitForFunction(()=>document.querySelector('#index-progress').textContent.includes('1000000'));assert.equal(await page.evaluate(()=>window.syncs),1);
   await page.evaluate(()=>window.historyUnavailable=true);await page.locator('#sync').click();await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('部分查询未完成'));
   assert.ok(await page.locator('#history-list').innerText().then(t=>t.includes('软件开发合作合同')));assert.match(await page.locator('#index-progress').textContent(),/部分信箱未同步/);assert.doesNotMatch(await page.locator('#index-progress').textContent(),/新增记录已同步/);
   await page.evaluate(()=>window.historyUnavailable=false);await page.locator('#sync').click();await page.waitForFunction(()=>document.querySelector('#index-progress').textContent.includes('新增记录已同步'));

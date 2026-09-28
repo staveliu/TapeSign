@@ -8,9 +8,9 @@ function receiptValue(r) {
   return r && {hash:r.transactionHash.toLowerCase(),status:BigInt(r.status).toString(),blockNumber:BigInt(r.blockNumber).toString(),blockHash:r.blockHash.toLowerCase(),from:r.from.toLowerCase(),to:r.to?.toLowerCase(),logs:r.logs.map(l=>({address:l.address.toLowerCase(),topics:l.topics.map(t=>t.toLowerCase()),data:l.data.toLowerCase(),blockHash:l.blockHash.toLowerCase(),transactionHash:l.transactionHash.toLowerCase(),removed:l.removed === true}))};
 }
 function waiting(message,code,details={}){return Object.assign(Error(message),{code,...details});}
-export async function readMessage(location, ctx, {allowPending=false,confirmation='finalized'} = {}) {
+export async function readMessage(location, ctx, {allowPending=false,confirmation='finalized',decoder=decode} = {}) {
   if(!['finalized','fast'].includes(confirmation))throw Error('Unknown confirmation policy');
-  anchor(location); const key = location.chainId + '/' + location.tx + '/' + confirmation + '/' + allowPending;
+  anchor(location); const key = location.chainId + '/' + location.tx + '/' + confirmation + '/' + allowPending + '/' + (decoder===decode?'contract':'notary');
   if (ctx.records.has(key)) return ctx.records.get(key);
   const promise = (async()=>{
     ctx.onProgress('按交易哈希核验链上消息…');
@@ -43,7 +43,7 @@ export async function readMessage(location, ctx, {allowPending=false,confirmatio
     const transaction = await rpc.agree('eth_getTransactionByHash',[location.tx],t=>t&&({hash:t.hash.toLowerCase(),from:t.from.toLowerCase(),to:t.to?.toLowerCase(),input:t.input.toLowerCase(),blockHash:t.blockHash?.toLowerCase(),value:BigInt(t.value).toString()}));
     const parsed = transaction && ABI.parseTransaction({data:transaction.input});
     if (!transaction || transaction.hash!==location.tx || transaction.from!==receipt.from || transaction.to!==n.hub || transaction.blockHash!==block.hash || transaction.value!=='0' || parsed?.name!=='send' || parsed.args[2].toLowerCase()!==to || parsed.args[3].toLowerCase()!==ref || parsed.args[4].toLowerCase()!==payload) throw Error('交易输入与事件不匹配');
-    return {location,block,from,to,ref,payload,record:decode(payload),sender:transaction.from,processor:parsed.args[0].toLowerCase(),tokenId:String(parsed.args[1]),inboxIndex:String(args.inboxIndex),outboxIndex:String(args.outboxIndex),finalized,ready,confirmation:progress};
+    return {location,block,from,to,ref,payload,record:decoder(payload),sender:transaction.from,processor:parsed.args[0].toLowerCase(),tokenId:String(parsed.args[1]),inboxIndex:String(args.inboxIndex),outboxIndex:String(args.outboxIndex),finalized,ready,confirmation:progress};
   })();
   ctx.records.set(key,promise);
   try { return await promise; } catch(e) { ctx.records.delete(key); throw e; }

@@ -1,5 +1,5 @@
-import {chromium} from 'playwright';
 import {browserOptions,testBase} from './browser.mjs';
+import {chromium} from 'playwright';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {fileURLToPath} from 'node:url';
@@ -64,10 +64,10 @@ try{
   state.stage=2;await page.clock.fastForward(10000);await page.waitForSelector('#seal');
   assert.equal(await page.locator('#existing-signatures canvas').count(),2);assert.equal(await page.locator('#sign-panel').isVisible(),false);
   state.stage=3;await page.clock.fastForward(10000);await page.waitForFunction(()=>document.querySelector('#contract-status').textContent.includes('链上归档'));
-  await page.locator('#tab-history').click();await page.locator('#history-container').fill(f.doc.parties.A.name);await page.locator('#sync').click();
+  await page.locator('#tab-history').click();await page.evaluate(async name=>{(await import('/src/current-container.js')).setCurrentContainer(name);},f.doc.parties.A.name);await page.locator('#sync').click();
   await page.waitForFunction(()=>document.querySelector('#history-list').textContent.includes('已归档'));assert.equal(await page.locator('.history-row').count(),1);
   // Original invitation remains open while cache gains acceptance, history updates without click.
-  const history=await setup();await history.page.goto(base);await history.page.locator('#tab-history').click();await history.page.locator('#history-container').fill(f.doc.parties.A.name);await history.page.locator('#sync').click();
+  const history=await setup();await history.page.goto(base);await history.page.locator('#tab-history').click();await history.page.evaluate(async name=>{(await import('/src/current-container.js')).setCurrentContainer(name);},f.doc.parties.A.name);await history.page.locator('#sync').click();
   await history.page.waitForFunction(()=>document.querySelector('#history-list').textContent.includes('待对方签署'));history.state.stage=2;await history.page.clock.fastForward(10000);
   await history.page.waitForFunction(()=>document.querySelector('#history-list').textContent.includes('双方已签署'));assert.equal(await history.page.locator('.history-row').count(),1);
   // Cache outage still discovers the cross-chain acceptance via scoped inbox.

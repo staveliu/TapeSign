@@ -13,6 +13,8 @@ import { cachedContract, cachedLatest, cachedHistory, notifyTransaction } from '
 import { assertContains, followContract } from './contract-follow.js';
 import { validatePreview } from './cache-preview.js';
 import { config } from './rpc.js';
+import {currentContainer,setCurrentContainer,requireCurrentContainer} from './current-container.js';
+import {setupNotary} from './notary-ui.js';
 const $=id=>document.getElementById(id), roleLabel=r=>r==='A'?'甲方':'乙方', short=n=>String(n||'').trim().replace(/\.tape$/i,'');
 let busy=false,doc=null,bundle=null,mode=null,submitted=null,indexRows=[],draftTimer,confirmationTimer,refreshing=false,viewEpoch=0,historyTimer,historySyncing=false;
 let following=false;
@@ -20,7 +22,8 @@ const directChecks=new Map(),historyChecks=new Map();
 const pad=new SignaturePad($('signature'),$('sign-placeholder'));
 function status(message,error=false){$('status').hidden=false;$('status').textContent=message;$('status').classList.toggle('error',error);$('status').classList.toggle('busy',busy&&!error);}
 function controls(){
-  document.querySelectorAll('button').forEach(b=>b.disabled=busy);
+  document.querySelectorAll('#contract-workspace button').forEach(b=>b.disabled=busy);
+  for(const id of ['choose-my-container','connect','product-contract','product-notary'])$(id).disabled=busy;
   for(const id of ['title','my-container','my-role','other-container','agree','open-value','open-chain','history-container'])$(id).disabled=busy;
   $('editor').contentEditable=busy?'false':'true';
   $('signature').style.pointerEvents=busy?'none':'auto';
@@ -71,13 +74,23 @@ $('sample').onclick=()=>{if($('editor').innerText.trim()&&!confirm('用示例替
 let pickedOwn=null;
 const picker=setupContainerPicker({connect,resolveIdentity,
   onWallet:address=>{$('connect').textContent=address.slice(0,6)+'…'+address.slice(-4);},
-  onChoose:(identity,target)=>{const name=short(identity.name);$(target).value=name;
-    if(target==='my-container'){pickedOwn=name;draft();if(!$('history-container').value){$('history-container').value=name;saveLocal('history-container',name);}}
-    else{saveLocal('history-container',name);indexRows=[];renderHistory();$('index-progress').textContent='已选择 '+name+'，点击“查询最新”加载合同。';}
+  onChoose:(identity,target)=>{const name=short(identity.name);pickedOwn=name;setCurrentContainer(identity.name);draft();
     status('已选择容器 '+name+'，当前持有人已核验。');},
-  onChanged:()=>{$('connect').textContent='连接钱包';if(pickedOwn&&short($('my-container').value)===pickedOwn){$('my-container').value='';draft();}pickedOwn=null;},
+  onChanged:()=>{$('connect').textContent='连接钱包';setCurrentContainer('');draft();pickedOwn=null;},
 });
-$('connect').onclick=()=>picker.open($('panel-history').hidden?'my-container':'history-container');
+$('connect').onclick=()=>picker.open('my-container');
+function sharedContainer(){
+  const name=short(currentContainer());$('my-container').value=name;$('history-container').value=name;
+  $('current-container-label').textContent=name?'当前容器 '+name:'尚未选择容器';
+  document.querySelectorAll('[data-current-container]').forEach(el=>el.textContent=name||'请在顶部选择容器');
+  saveLocal('history-container',name);indexRows=[];viewEpoch++;clearTimeout(historyTimer);invalidate();renderHistory();
+}
+window.addEventListener('tapesign:container',sharedContainer);
+const notary=setupNotary();
+window.addEventListener('tapesign:notary-busy',event=>{for(const id of ['choose-my-container','connect','product-contract','product-notary'])$(id).disabled=event.detail||busy;});
+function product(name){if(busy||notary.busy)return;const selected=name==='notary';$('contract-workspace').hidden=selected;$('notary-workspace').hidden=!selected;$('product-contract').classList.toggle('active',!selected);$('product-notary').classList.toggle('active',selected);viewEpoch++;stopConfirmation();clearTimeout(historyTimer);notary.activate(selected);if(!selected&&bundle&&!$('panel-open').hidden)scheduleConfirmation(bundle.selected);}
+$('product-contract').onclick=()=>product('contract');$('product-notary').onclick=()=>product('notary');
+function selectedParty(role){if(requireCurrentContainer()!==doc.parties[role].name)throw Error('请在顶部选择本次操作对应的容器 '+short(doc.parties[role].name));}
 function paper(contract,signatures=[],state='发起前预览'){
   $('contract-view').hidden=false;$('contract-title').textContent=contract.title;$('contract-status').textContent=state;$('contract-id').textContent='合同编号 '+contract.contractId;renderBody(contract.body,$('contract-body'));
   $('contract-parties').replaceChildren();
@@ -88,7 +101,7 @@ function paper(contract,signatures=[],state='发起前预览'){
 function signing(role){pad.clear();$('agree').checked=false;$('sign-panel').hidden=false;$('sign-role').textContent=`你将作为${roleLabel(role)}签署：${short(doc.parties[role].name)}。请核对上方完整正文。`;$('submit-sign').textContent=mode==='create'?'确认签署并发起':'确认签署并回传';controls();}
 $('review').onclick=()=>action(async()=>{
   stopConfirmation();
-  const input={title:$('title').value,body:editorValue(),myName:$('my-container').value,otherName:$('other-container').value,role:$('my-role').value};
+  const input={title:$('title').value,body:editorValue(),myName:requireCurrentContainer(),otherName:$('other-container').value,role:$('my-role').value};
   nameInfo(input.myName);nameInfo(input.otherName);if(!input.title.trim())throw Error('请填写合同名称');
   doc=await createDocument(input,status);bundle=null;mode='create';paper(doc);$('export').hidden=true;$('proof').hidden=true;$('next-step').hidden=true;$('share-panel').hidden=true;signing(doc.initiator);status('请核对合同正文、双方容器与签署钱包，然后在下方手写签名。');$('contract-view').scrollIntoView({behavior:'smooth',block:'start'});
 });
@@ -104,6 +117,7 @@ function showShare(location,stage){
 }
 $('submit-sign').onclick=()=>action(async()=>{
   if(!$('agree').checked||!doc)throw Error('请先阅读合同并勾选确认');
+  selectedParty(mode==='create'?doc.initiator:otherRole(doc.initiator));
   if(mode==='accept'&&bundle?.ready!==true)throw Error('短确认尚未完成，暂不能签署');
   const ink=pad.value(),key=mode==='create'?'offer:'+documentId(doc):'accept:'+bundle.offer.location.tx;
   const previous=readLocal('action:'+key);if(previous){showShare(previous,mode==='create'?'offer':'accept');return;}
@@ -156,7 +170,7 @@ function renderContract(result,location,{refresh=false,previous=null,oldMode=nul
   else if(bundle.status!=='sealed'&&!compatible){$('next-step').hidden=false;$('next-step').textContent='这份合同的客户端版本尚未确认兼容。请使用原邀请链接中的版本页面继续签署；当前页面仅核验。';}
   if(ready&&bundle.status==='invited'&&compatible){mode='accept';if(!keepSignature)signing(otherRole(doc.initiator));$('next-step').hidden=false;$('next-step').textContent='等待签署方签署。此页面每 10 秒查询回签状态；发起方无需等待或打开回传链接。';}
   if(ready&&bundle.status==='signed'&&compatible){
-    $('next-step').hidden=false;$('next-step').textContent='双方签署已核验。由发起方将完整正文与双签名归档到一笔交易。';const button=document.createElement('button');button.id='seal';button.className='button primary';button.textContent='发起最终归档';button.onclick=()=>action(async()=>{const key='action:seal:'+bundle.acceptance.location.tx;const previous=readLocal(key);if(previous){showShare(previous,'seal');return;}const result=await publishSeal(bundle.acceptance.location,status);saveLocal(key,result);showShare(result,'seal');});$('next-step').append(button);
+    $('next-step').hidden=false;$('next-step').textContent='双方签署已核验。由发起方将完整正文与双签名归档到一笔交易。';const button=document.createElement('button');button.id='seal';button.className='button primary';button.textContent='发起最终归档';button.onclick=()=>action(async()=>{selectedParty(doc.initiator);const key='action:seal:'+bundle.acceptance.location.tx;const previous=readLocal(key);if(previous){showShare(previous,'seal');return;}const result=await publishSeal(bundle.acceptance.location,status);saveLocal(key,result);showShare(result,'seal');});$('next-step').append(button);
   }
   if(!finalized||!bundle.seal)scheduleConfirmation(location);
   $('open-value').value=makeLink(location,window.location.href);status(finalized?'核验完成。合同交易已最终确认，链上内容已通过两家 RPC 一致性校验。':ready?'短确认已通过，可以继续签署或归档。链最终确认仍在进行，期间可能因重组回滚；后台每 10 秒复查。':pendingMessage(result));tab('open');controls();if(!refresh)$('contract-view').scrollIntoView({behavior:'smooth'});
@@ -168,7 +182,7 @@ $('export').onclick=()=>{if(bundle)download(bundle.doc.contractId+'.json',export
 $('import').onchange=()=>action(async()=>{const file=$('import').files[0];if(!file)return;if(file.size>1000000)throw Error('证据文件过大');const data=JSON.parse(await file.text());if(data.format!=='TapeSign evidence v2')throw Error('请使用 V2 合同证据文件；旧合同请使用原版本客户端');await openContract(anchor(data.selected));});
 function renderHistory(){
   const recent=readLocal('recent',[]),rows=groupContracts([...indexRows,...recent],$('history-container').value);$('history-list').replaceChildren();
-  if(!rows.length){const p=document.createElement('p');p.className='empty';p.textContent='还没有本地合同记录。可以输入容器 ID 查询链上信箱。';$('history-list').append(p);return;}
+  if(!rows.length){const p=document.createElement('p');p.className='empty';p.textContent='还没有该容器的合同记录。选择顶部容器后可查询链上信箱。';$('history-list').append(p);return;}
   for(const r of rows){const row=document.createElement('div'),info=document.createElement('div'),title=document.createElement('strong'),hash=document.createElement('small'),button=document.createElement('button');row.className='history-row';row.dataset.contractId=r.contractId;title.textContent=String(r.label||'合同');hash.className='mono';hash.textContent=`${r.contractId} · ${{offer:'待对方签署',accept:'双方已签署',seal:'已归档'}[r.type]} · ${r.transactions.length} 笔链上记录${r.conflict?' · 编号冲突，请核对指纹':' · 打开后核验'}`;button.className='button secondary small';button.textContent='打开';button.onclick=()=>action(()=>openContract(r.location));info.append(title,hash);row.append(info,button);$('history-list').append(row);}
 }
 function showIndex(result){
@@ -211,5 +225,6 @@ $('sync').onclick=()=>void sync();$('older').onclick=()=>void sync(true);$('hist
 $('history-container').addEventListener('change',()=>{viewEpoch++;clearTimeout(historyTimer);indexRows=[];renderHistory();});
 for(const id of ['my-container','other-container'])$(id).value=short($(id).value);
 $('release-label').textContent='客户端 '+release.slice(0,10)+' · 独立校验';
-renderHistory();controls();
+sharedContainer();renderHistory();controls();
+if(new URLSearchParams(location.search).get('view')==='notary'||new URLSearchParams(location.search).has('notary'))product('notary');
 if(new URLSearchParams(location.search).has('tx'))action(()=>openContract(parseLink(location.href)));

@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>TapeSign · 网站激活</title></head>
+<body><header class="header"><a class="brand" href="/publish.html">TapeSign <small>返回发布工作台</small></a><span class="network-label">X Layer · 196</span></header>
+<main><section class="hero"><div class="eyebrow">WEBSITE ACTIVATION</div><h1>激活网站访问</h1></section>
+<section class="card"><h2>4.2.204 网站订阅</h2><p class="hint">文件已上传，无需重新上传。网站订阅费用由 TapeOut 的 DomainBinding 合约收取，以实时查询及钱包确认金额为准，另需网络 gas。不申请代扣或操作员授权。</p>
+<div id="status" class="status" role="status">正在核对容器、网站状态与费用…</div><pre id="details" class="mono"></pre>
+<label for="months">开通时长（每期 30 天）</label><select id="months"><option value="1">1 期 · 30 天</option><option value="3">3 期 · 90 天</option><option value="12">12 期 · 360 天</option></select>
+<div class="input-row"><button id="refresh" class="button secondary">重新核对状态与费用</button><button id="activate" class="button primary" disabled>钱包确认开通</button></div>
+<h3>已为其他域名付过费？</h3><p class="hint">填写原付费域名，先核对同一容器下的有效记录。同步不收订阅费，仅支付 gas；已过期的记录不能激活网站。</p>
+<label for="domain">原付费域名</label><input id="domain" placeholder="example.com" autocomplete="off"><button id="sync" class="button secondary" disabled>核对并同步已有付费</button>
+<p id="pending" class="mono"></p><p><a id="open-site" href="https://4-2-204.tapekit.org/" target="_blank" rel="noopener" hidden>打开 4.2.204 网站</a></p>
+</section></main><script type="module" src="/src/activation-ui.js"></script></body></html>
