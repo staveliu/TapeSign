@@ -15,9 +15,11 @@ import { validatePreview } from './cache-preview.js';
 import { config } from './rpc.js';
 import {currentContainer,setCurrentContainer,requireCurrentContainer} from './current-container.js';
 import {setupNotary} from './notary-ui.js';
+import {readTabRoute,writeTabRoute} from './navigation.js';
 const $=id=>document.getElementById(id), roleLabel=r=>r==='A'?'甲方':'乙方', short=n=>String(n||'').trim().replace(/\.tape$/i,'');
 let busy=false,doc=null,bundle=null,mode=null,submitted=null,indexRows=[],draftTimer,confirmationTimer,refreshing=false,viewEpoch=0,historyTimer,historySyncing=false;
 let following=false;
+let activeProduct='contract',contractTab='create';
 const directChecks=new Map(),historyChecks=new Map();
 const pad=new SignaturePad($('signature'),$('sign-placeholder'));
 function status(message,error=false){$('status').hidden=false;$('status').textContent=message;$('status').classList.toggle('error',error);$('status').classList.toggle('busy',busy&&!error);}
@@ -61,7 +63,7 @@ async function followCurrent(epoch){
   }finally{following=false;}
 }
 function pendingMessage(result){const progress=(result.confirmation||[]).map(c=>`链 ${c.chainId}：短确认 ${c.depth} / ${c.requiredDepth} 个后续区块${c.fresh?'':'，节点进度落后'}`).join('；');return '合同内容已核验并可阅读；正在等待短确认，暂不能签署或归档。\n'+progress+'\n每 10 秒自动复查，无需重新发送交易。';}
-function tab(name){document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===name));for(const key of ['create','open','history'])$('panel-'+key).hidden=key!==name;}
+function tab(name,{write=true}={}){contractTab=name;document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===name));for(const key of ['create','open','history'])$('panel-'+key).hidden=key!==name;if(write&&activeProduct==='contract')writeTabRoute('contract',name);}
 document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{viewEpoch++;stopConfirmation();clearTimeout(historyTimer);tab(b.dataset.tab);if(b.dataset.tab==='history'){renderHistory();if($('history-container').value)void sync();}});
 function draft(){clearTimeout(draftTimer);draftTimer=setTimeout(()=>{const ok=saveLocal('draft',{title:$('title').value,myName:$('my-container').value,otherName:$('other-container').value,role:$('my-role').value,body:readEditor($('editor'))});$('draft-state').textContent=ok?'草稿已保存到本机':'本机存储不可用，请保留正文';},400);invalidate();}
 function invalidate(){if(mode==='create'){doc=null;mode=null;$('contract-view').hidden=true;$('sign-panel').hidden=true;}}
@@ -81,14 +83,14 @@ const picker=setupContainerPicker({connect,resolveIdentity,
 $('connect').onclick=()=>picker.open('my-container');
 function sharedContainer(){
   const name=short(currentContainer());$('my-container').value=name;$('history-container').value=name;
-  $('current-container-label').textContent=name?'当前容器 '+name:'尚未选择容器';
+  $('current-container-label').textContent=name?'当前容器 '+name:'请先选择容器';$('current-container-label').classList.toggle('missing',!name);
   document.querySelectorAll('[data-current-container]').forEach(el=>el.textContent=name||'请在顶部选择容器');
   saveLocal('history-container',name);indexRows=[];viewEpoch++;clearTimeout(historyTimer);invalidate();renderHistory();
 }
 window.addEventListener('tapesign:container',sharedContainer);
-const notary=setupNotary();
+const notary=setupNotary({onTabChange:name=>writeTabRoute('notary',name)});
 window.addEventListener('tapesign:notary-busy',event=>{for(const id of ['choose-my-container','connect','product-contract','product-notary'])$(id).disabled=event.detail||busy;});
-function product(name){if(busy||notary.busy)return;const selected=name==='notary';$('contract-workspace').hidden=selected;$('notary-workspace').hidden=!selected;$('product-contract').classList.toggle('active',!selected);$('product-notary').classList.toggle('active',selected);viewEpoch++;stopConfirmation();clearTimeout(historyTimer);notary.activate(selected);if(!selected&&bundle&&!$('panel-open').hidden)scheduleConfirmation(bundle.selected);}
+function product(name,targetTab=null,{write=true}={}){if(busy||notary.busy)return;activeProduct=name;const selected=name==='notary';$('contract-workspace').hidden=selected;$('notary-workspace').hidden=!selected;$('product-contract').classList.toggle('active',!selected);$('product-notary').classList.toggle('active',selected);viewEpoch++;stopConfirmation();clearTimeout(historyTimer);if(targetTab){if(selected)notary.setTab(targetTab,{notify:false});else tab(targetTab,{write:false});}notary.activate(selected);if(write)writeTabRoute(name,selected?notary.tab:contractTab);if(!selected&&bundle&&!$('panel-open').hidden)scheduleConfirmation(bundle.selected);if(!selected&&contractTab==='history'){renderHistory();if($('history-container').value)void sync();}}
 $('product-contract').onclick=()=>product('contract');$('product-notary').onclick=()=>product('notary');
 function selectedParty(role){if(requireCurrentContainer()!==doc.parties[role].name)throw Error('请在顶部选择本次操作对应的容器 '+short(doc.parties[role].name));}
 function paper(contract,signatures=[],state='发起前预览'){
@@ -226,5 +228,13 @@ $('history-container').addEventListener('change',()=>{viewEpoch++;clearTimeout(h
 for(const id of ['my-container','other-container'])$(id).value=short($(id).value);
 $('release-label').textContent='客户端 '+release.slice(0,10)+' · 独立校验';
 sharedContainer();renderHistory();controls();
-if(new URLSearchParams(location.search).get('view')==='notary'||new URLSearchParams(location.search).has('notary'))product('notary');
-if(new URLSearchParams(location.search).has('tx'))action(()=>openContract(parseLink(location.href)));
+const initialRoute=readTabRoute(window.location);product(initialRoute.product,initialRoute.tab,{write:false});writeTabRoute(initialRoute.product,initialRoute.tab,{replace:true});
+if(initialRoute.product==='contract'&&initialRoute.tab==='open'&&new URLSearchParams(location.search).has('tx'))action(()=>openContract(parseLink(location.href)));
+function restoreRoute(){
+ const route=readTabRoute(window.location);
+ if(busy||notary.busy){writeTabRoute(activeProduct,activeProduct==='notary'?notary.tab:contractTab,{replace:true});return;}
+ if(route.product===activeProduct&&route.tab===(activeProduct==='notary'?notary.tab:contractTab))return;
+ product(route.product,route.tab,{write:false});writeTabRoute(route.product,route.tab,{replace:true});
+ if(route.product==='contract'&&route.tab==='open'&&!bundle&&new URLSearchParams(location.search).has('tx'))void action(()=>openContract(parseLink(location.href)));
+}
+window.addEventListener('hashchange',restoreRoute);window.addEventListener('popstate',restoreRoute);

@@ -39,5 +39,6 @@ jobs:
           npm run test:cache-ui
           npm run test:containers
           npm run test:notary
+          npm run test:navigation
           node scripts/test-publication-ui.mjs
           node scripts/test-activation-ui.mjs

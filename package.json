@@ -15,6 +15,7 @@
     "package": "node scripts/package.mjs",
     "check:public": "node scripts/check-public.mjs",
     "test:notary": "node scripts/test-notary-ui.mjs",
+    "test:navigation": "node scripts/test-navigation-ui.mjs",
     "test:activation": "node scripts/test-activation-ui.mjs"
   },
   "dependencies": {

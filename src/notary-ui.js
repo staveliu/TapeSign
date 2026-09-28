@@ -9,7 +9,7 @@ import {config,context} from './rpc.js';
 import {submissionRow,notaryStatusText} from './notary-status.js';
 import {anchor} from './protocol.js';
 const $=id=>document.getElementById(id);
-export function setupNotary(){
+export function setupNotary({onTabChange=()=>{}}={}){
  $('notary-workspace').innerHTML=[
  '<section class="hero"><div><div class="eyebrow">YOUR CONTENT. YOUR ON-CHAIN DECLARATION.</div><h1>为你的内容，<br><em>留下链上凭据。</em></h1><p>一段文字，一张原图。用容器身份宣誓归属，公开或仅存哈希。</p></div><div class="hero-note"><span class="note-number">TAPESIGN / NOTARY</span><div>唯一编号 · 原件指纹 · 独立核验</div><small>记录容器持有人的归属声明与链上时间。</small></div></section>',
  '<nav class="tabs notary-tabs" aria-label="链上公证"><button data-notary-tab="create" class="active">内容公证</button><button data-notary-tab="search">内容公开查询</button><button data-notary-tab="public">公证公开</button></nav>',
@@ -111,7 +111,7 @@ export function setupNotary(){
    if(entry.bytes){const button=document.createElement('button');button.className='button secondary';button.textContent='保存哈希匹配的原件';button.onclick=()=>{const url=URL.createObjectURL(new Blob([entry.bytes],{type:entry.row.mime})),a=document.createElement('a');a.href=url;a.download=entry.row.id+(entry.row.kind==='text'?'.txt':{'image/png':'.png','image/jpeg':'.jpg','image/webp':'.webp','image/gif':'.gif'}[entry.row.mime]);a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};$('notary-detail-content').append(button);}
   }
   if(!lastLocation)return;const loc={...lastLocation},button=document.createElement('button');button.className='button secondary';button.textContent='手动独立核验这笔公证';button.onclick=()=>{void independentDetail(loc,button);};$('notary-detail-content').append(button);
-  const url=new URL(window.location.href);url.search='';url.searchParams.set('view','notary');url.searchParams.set('chain',loc.chainId);url.searchParams.set('notary',loc.tx);const a=document.createElement('a');a.href=url.href;a.textContent='公证查询链接';$('notary-detail-content').append(a);
+  const url=new URL(window.location.href);url.search='';url.hash='notary/'+tab;url.searchParams.set('view','notary');url.searchParams.set('chain',loc.chainId);url.searchParams.set('notary',loc.tx);const a=document.createElement('a');a.href=url.href;a.textContent='公证查询链接';$('notary-detail-content').append(a);
  }
  async function independentDetail(loc,button){
   button.disabled=true;button.textContent='正在独立核验…';const stop=new AbortController(),ctx=context(undefined,()=>{}, {signal:stop.signal});let deadline;
@@ -150,7 +150,7 @@ export function setupNotary(){
  $('notary-kind').onchange=()=>{$('notary-text-label').hidden=$('notary-text').hidden=$('notary-kind').value!=='text';$('notary-file-label').hidden=$('notary-kind').value!=='image';};
  $('notary-query-kind').onchange=()=>{$('notary-query-text').hidden=$('notary-query-kind').value!=='text';$('notary-query-file').hidden=$('notary-query-kind').value!=='image';};
  $('notary-query').onclick=()=>action(async()=>{const v=await input('notary-query-kind','notary-query-text','notary-query-file');searchHash=describeContent(v.value,v.kind).hash;page=1;$('notary-query-hash').textContent=searchHash;await refreshCache();});
- function setTab(name){tab=name;page=1;for(const id of ['create','search','public'])$('notary-'+id).hidden=id!==name;document.querySelectorAll('[data-notary-tab]').forEach(b=>b.classList.toggle('active',b.dataset.notaryTab===name));$('notary-results').hidden=name==='create';if(!busy)note(name==='public'?'公开列表由缓存快速提供，服务器在后台核验，状态自动更新。':name==='search'?'在本机计算内容哈希，从缓存查询公证及链上核验状态。':'选择透明或非透明方式，缓存查重后提交，服务器后台核验。');if(name!=='create')void refreshCache();render();}
+ function setTab(name,{notify=true}={}){if(!['create','search','public'].includes(name))return;tab=name;page=1;for(const id of ['create','search','public'])$('notary-'+id).hidden=id!==name;document.querySelectorAll('[data-notary-tab]').forEach(b=>b.classList.toggle('active',b.dataset.notaryTab===name));$('notary-results').hidden=name==='create';if(!busy)note(name==='public'?'公开列表由缓存快速提供，服务器在后台核验，状态自动更新。':name==='search'?'在本机计算内容哈希，从缓存查询公证及链上核验状态。':'选择透明或非透明方式，缓存查重后提交，服务器后台核验。');if(active&&name!=='create')void refreshCache();render();if(notify)onTabChange(name);}
  document.querySelectorAll('[data-notary-tab]').forEach(b=>b.onclick=()=>setTab(b.dataset.notaryTab));
  for(const id of ['notary-filter','notary-sort','notary-mine'])$(id).onchange=()=>{if(id==='notary-mine'&&$('notary-mine').checked&&!currentContainer()){$('notary-mine').checked=false;note('请先在顶部选择容器',true);return;}page=1;void refreshCache();render();};
  $('notary-prev').onclick=()=>{page=Math.max(1,page-1);void refreshCache();render();};$('notary-next').onclick=()=>{page++;void refreshCache();render();};$('notary-refresh').onclick=()=>{audit=null;void refreshCache();};$('notary-independent').onclick=()=>void runAudit();$('notary-detail-close').onclick=()=>{$('notary-detail').hidden=true;lastLocation=null;viewEpoch++;};
@@ -158,5 +158,5 @@ export function setupNotary(){
  window.addEventListener('storage',event=>{if(event.key?.startsWith('tapesign-v2:notary-')){controls();restoreLocal();if(active)void poll();}});
  try{const restored=pendingNotary();if(restored?.claim){$('notary-kind').value=restored.claim.kind;$('notary-visibility').value=restored.claim.visibility;$('notary-kind').onchange();$('notary-plan').textContent=JSON.stringify({id:restored.claim.id,container:restored.claim.owner.name,visibility:restored.claim.visibility,hash:restored.claim.hash,size:restored.claim.size,transactions:notaryTransactions(restored)},null,2);}restoreLocal();}catch{/* Preserve corrupted drafts for explicit recovery. */}
  own();controls();
- return {get busy(){return busy;},activate(value){active=value;if(active){own();controls();void poll();const q=new URLSearchParams(location.search);if(q.has('notary')&&!lastLocation)void showDetail({chainId:q.get('chain'),tx:q.get('notary')});}else{controller?.abort();pollController?.abort();viewController?.abort();cacheEpoch++;clearTimeout(timer);}}};
+ return {get busy(){return busy;},get tab(){return tab;},setTab,activate(value){active=value;if(active){own();controls();void poll();const q=new URLSearchParams(location.search);if(q.has('notary')&&!lastLocation)void showDetail({chainId:q.get('chain'),tx:q.get('notary')});}else{controller?.abort();pollController?.abort();viewController?.abort();cacheEpoch++;clearTimeout(timer);}}};
 }
