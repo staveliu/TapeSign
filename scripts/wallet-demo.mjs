@@ -6,6 +6,10 @@ import {parseEther,keccak256} from 'ethers';
 import {walletFixture} from '../test/wallet-fixture.mjs';
 import artifact from '../src/wallet-artifact.json' with {type:'json'};
 
+// Vite adds ?t=... after hot updates. Match the entry independent of those
+// attributes so refresh never drops the demo bootstrap or its session checks.
+export function demoIndexHtml(html){return html.replace(/<script\b[^>]*\bsrc=["']\/src\/app[.]js(?:\?[^"']*)?["'][^>]*><\/script>/,'<script type="module" src="/wallet-demo-entry.js"></script><style>#product-contract,#product-notary,#choose-my-container,#connect{display:none!important}</style>');}
+
 export async function startWalletDemo({port=18743}={}){
  const f=await walletFixture({deployWallet:false});
  const root=fileURLToPath(new URL('../',import.meta.url));
@@ -41,7 +45,7 @@ document.getElementById('demo-fill').onclick=()=>{document.getElementById('walle
 document.getElementById('demo-fund').onclick=async()=>{const status=document.getElementById('demo-status');try{const wallet=document.getElementById('wallet-select').value.split('/')[1];if(!wallet)throw Error('请先部署并核对钱包结果');const r=await fetch('/demo/fund',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({wallet})}),v=await r.json();if(v.error)throw Error(v.error);status.textContent='已充值 1 TEST 原生币和 10 TEST6。';}catch(e){status.textContent=e.message;}};
 await import('/src/app.js');
 `;
- const server=await createServer({configFile:false,root,publicDir:false,define:{__RELEASE__:JSON.stringify('local-wallet-demo')},server:{host:'127.0.0.1',port,strictPort:port!==0},plugins:[{name:'wallet-isolated-demo',enforce:'pre',load(id){if(id.split('?')[0].replaceAll('\\','/').endsWith('/src/rpc.js'))return rpcModule;},transformIndexHtml(html){return html.replace('<script type="module" src="/src/app.js"></script>','<script type="module" src="/wallet-demo-entry.js"></script><style>#product-contract,#product-notary,#choose-my-container,#connect{display:none!important}</style>');},configureServer(vite){vite.middlewares.use(async(req,res,next)=>{
+ const server=await createServer({configFile:false,root,publicDir:false,define:{__RELEASE__:JSON.stringify('local-wallet-demo')},server:{host:'127.0.0.1',port,strictPort:port!==0},plugins:[{name:'wallet-isolated-demo',enforce:'pre',load(id){if(id.split('?')[0].replaceAll('\\','/').endsWith('/src/rpc.js'))return rpcModule;},transformIndexHtml:demoIndexHtml,configureServer(vite){vite.middlewares.use(async(req,res,next)=>{
   const origin='http://'+req.headers.host,url=new URL(req.url,origin);
   if(url.pathname==='/wallet-demo-entry.js'){res.setHeader('Content-Type','text/javascript');res.end(init);return;}
   if(!url.pathname.startsWith('/demo/'))return next();

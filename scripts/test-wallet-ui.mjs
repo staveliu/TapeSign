@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {Contract,parseEther} from 'ethers';
 import artifact from '../src/wallet-artifact.json' with {type:'json'};
-import {startWalletDemo} from './wallet-demo.mjs';
+import {startWalletDemo,demoIndexHtml} from './wallet-demo.mjs';
+for(const suffix of ['', '?t=1790658831951']){const html=demoIndexHtml('<script type="module" src="/src/app.js'+suffix+'"></script>');assert.ok(html.includes('/wallet-demo-entry.js'));assert.ok(!html.includes('/src/app.js'));}
 const demo=await startWalletDemo({port:0});
 const channel=process.env.PLAYWRIGHT_CHANNEL||'msedge';
 const browser=await chromium.launch({headless:true,...(channel==='chromium'?{}:{channel})});
