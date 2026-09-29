@@ -60,7 +60,8 @@ export async function signWalletProposal(input,role){
 async function broadcast(chainId,expected,tx,details,preflight){
  if(!navigator.locks)throw Error('请使用支持 Web Locks 的 Chrome 或 Edge');
  return navigator.locks.request(prefix+'send',{ifAvailable:true},async lock=>{
-  if(!lock||pendingWalletTx())throw Error('已有待确认交易，请先核对发送结果，勿重复发送');
+  if(!lock)throw Object.assign(Error('另一页面正在发送或核对交易，请稍后再试'),{code:'WALLET_SEND_IN_PROGRESS'});
+  if(pendingWalletTx())throw Object.assign(Error('上一笔交易正在等待核对，请查看上方“待确认的链上操作”；无需再次发送'),{code:'WALLET_TX_PENDING'});
   const {p,from}=await walletSession(chainId,expected);await preflight?.();
   const request={...tx,from,chainId:toQuantity(chainId)};const gas=await p.request({method:'eth_estimateGas',params:[request]});await assertSession(p,chainId,from);await preflight?.();
   await assertSession(p,chainId,from);
@@ -98,7 +99,7 @@ export async function recoverWalletTransaction(hash){
   if(BigInt(receipt.blockNumber)>BigInt(r.block))throw Error('独立节点尚未同步到交易区块，请稍后核对；无需重发');
   const block=await r.ctx.rpc(pending.chainId).agree('eth_getBlockByNumber',[receipt.blockNumber,false],v=>v?{hash:v.hash,number:v.number}:null);
   if(!block||block.hash!==receipt.blockHash)throw Error('交易区块已变化，请稍后重新核验');await r.ctx.assert();
-  if(BigInt(receipt.status)===0n){store('history',[{...pending,failed:true},...readArray('history')].slice(0,100));localStorage.removeItem(pendingKey);throw Error('交易已在链上失败，可重新读取状态后再操作');}
+  if(BigInt(receipt.status)===0n){store('history',[{...pending,failed:true},...readArray('history')].slice(0,100));localStorage.removeItem(pendingKey);throw Object.assign(Error('交易已在链上失败，可重新读取状态后再操作'),{code:'WALLET_TX_FAILED'});}
   if(BigInt(receipt.status)!==1n)throw Error('交易状态无效');
   if(pending.details.kind!=='deploy'){
    const expected={Bind:'WalletActivated',Transfer:'TransferExecuted',Resume:'WalletResumed',cancel:'NonceCancelled',pause:'WalletPaused'}[pending.details.kind];
@@ -106,9 +107,9 @@ export async function recoverWalletTransaction(hash){
    const event=events.find(e=>e?.name===expected);if(!event)throw Error('未找到与操作一致的链上钱包事件');
    if(pending.details.kind==='Transfer'&&event.args.digest!==pending.details.digest)throw Error('链上执行事件与签署提案不一致');
   }
-  let policy=pending.details.policy;if(pending.details.kind==='deploy'){policy={...policy,wallet:walletAddress(receipt.contractAddress)};await inspectWallet(policy);rememberWallet(policy);}
-  else {await inspectWallet(policy);rememberWallet(policy);}
-  store('history',[{...pending,policy,blockNumber:receipt.blockNumber},...readArray('history')].slice(0,100));localStorage.removeItem(pendingKey);return {policy,hash,kind:pending.details.kind,digest:pending.details.digest};
+  let policy=pending.details.policy;if(pending.details.kind==='deploy')policy={...policy,wallet:walletAddress(receipt.contractAddress)};
+  const state=await inspectWallet(policy);rememberWallet(state.policy);
+  store('history',[{...pending,policy:state.policy,blockNumber:receipt.blockNumber},...readArray('history')].slice(0,100));localStorage.removeItem(pendingKey);return {policy:state.policy,state,hash,kind:pending.details.kind,digest:pending.details.digest};
  });
 }
 export function walletHistory(){return readArray('history');}
