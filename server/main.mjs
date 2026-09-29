@@ -19,7 +19,7 @@ const server=http.createServer(async(req,res)=>{
   const clientIp=['127.0.0.1','::1','::ffff:127.0.0.1'].includes(peer)&&isIP(forwarded)?forwarded:peer;
   if(!allowed(clientIp))return reply(429,{error:'请求过多，请稍后重试'});
   try{const url=new URL(req.url,'http://localhost');
-    if(req.method==='GET'&&['/','/health'].includes(url.pathname))return reply(200,{...service.health(),notary:notary.health()});
+    if(req.method==='GET'&&['/','/health'].includes(url.pathname))return reply(200,{...service.health(),rpcStorage:service.rpc.health(),notary:notary.health()});
     if(req.method==='GET'&&url.pathname==='/notary/check')return reply(200,notary.check({hash:url.searchParams.get('hash')||'',id:url.searchParams.get('id')||'',owner:url.searchParams.get('owner')||''}));
     if(req.method==='POST'&&url.pathname==='/notary/submit'){let raw='';for await(const chunk of req){raw+=chunk;if(Buffer.byteLength(raw)>40000)return reply(413,{error:'请求过大'});}return reply(202,notary.submit(JSON.parse(raw)));}
     if(req.method==='GET'&&url.pathname==='/notary/list')return reply(200,notary.list({hash:url.searchParams.get('hash')||'',owner:url.searchParams.get('owner')||'',q:url.searchParams.get('q')||'',sort:url.searchParams.get('sort')||'desc',page:Number(url.searchParams.get('page')||1),pageSize:Number(url.searchParams.get('pageSize')||12)}));
@@ -32,14 +32,16 @@ const server=http.createServer(async(req,res)=>{
     if(req.method==='GET'&&parts.length===4&&parts[1]==='latest')return reply(200,service.latest({chainId:parts[2],tx:parts[3]}));
     if(req.method==='POST'&&url.pathname==='/notify'){let raw='';for await(const chunk of req){raw+=chunk;if(raw.length>1024)return reply(413,{error:'请求过大'});}service.enqueue(JSON.parse(raw));return reply(202,{queued:true});}
     return reply(404,{error:'Unknown read-only route'});
-  }catch{return reply(400,{error:'请求格式无效或队列已满'});}
+  }catch(e){if(['ENOSPC','EDQUOT','EIO','EROFS'].includes(e.code))return reply(503,{error:'缓存存储暂不可用，请保留交易，稍后自动重试',code:'CACHE_STORAGE_UNAVAILABLE'});return reply(400,{error:'请求格式无效或队列已满'});}
 });
 server.requestTimeout=15000;server.headersTimeout=10000;
 server.listen(Number(process.env.PORT||18741),process.env.HOST||'127.0.0.1',()=>console.log('TapeSign cache ready'));
+await service.rpc.maintain();
+const rpcCleanup=setInterval(()=>void service.rpc.maintain(),60000);
 const timer=setInterval(()=>void service.tick(),5000);void service.tick();
 // Verification of a notified transaction must not wait for long scan/watch RPCs.
 const jobsTimer=setInterval(()=>{void service.processJobs().catch(()=>{});void notary.processJobs().catch(()=>{});},1000);
 const notaryTimer=setInterval(()=>void notary.tick().catch(()=>{}),30000);void notary.tick().catch(()=>{});
 const watchTimer=setInterval(()=>void service.processWatchers().catch(()=>{}),5000);
 const cleanup=setInterval(()=>{const now=Date.now();for(const[k,v]of rate)if(now-v.time>60000)rate.delete(k);},60000);
-for(const signal of ['SIGTERM','SIGINT'])process.on(signal,()=>{clearInterval(timer);clearInterval(jobsTimer);clearInterval(watchTimer);clearInterval(cleanup);clearInterval(notaryTimer);service.persist();notary.persist();server.close(()=>process.exit(0));});
+for(const signal of ['SIGTERM','SIGINT'])process.on(signal,()=>{clearInterval(timer);clearInterval(jobsTimer);clearInterval(watchTimer);clearInterval(cleanup);clearInterval(notaryTimer);clearInterval(rpcCleanup);service.persist();notary.persist();server.close(()=>process.exit(0));});

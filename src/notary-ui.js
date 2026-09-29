@@ -77,14 +77,24 @@ export function setupNotary({onTabChange=()=>{}}={}){
   const selected=useCache?cachedPage:local.rows,total=useCache?cachedTotal:local.total,pages=Math.max(1,Math.ceil(total/12));
   if(page>pages&&(audit?.complete||cacheMatches)){page=pages;void refreshCache();return;}
   $('notary-cards').replaceChildren();
+  // Unacknowledged local submissions must remain visible even when an older
+  // server page succeeds. Keep them separate from server pagination and audit.
+  const shown=new Set(selected.map(row=>notaryKey(row.location)));
+  const pendingRows=queryNotaries(recentNotaries().filter(s=>!s.acknowledged).map(s=>entries.get(notaryKey(s.location))).filter(e=>e&&!shown.has(notaryKey(e.row.location))).map(e=>e.row),{...opts,page:1,pageSize:50}).rows;
+  if(pendingRows.length){const section=document.createElement('section');section.className='notary-local-pending';section.style.gridColumn='1 / -1';
+   const heading=document.createElement('h3');heading.textContent='本机已提交 · 等待缓存收录';
+   const hint=document.createElement('p');hint.className='hint';hint.textContent='以下交易已保存在本机，缓存通知正在重试，无需重新签名或发送。不计入服务器分页及独立核验结果。';
+   const grid=document.createElement('div');grid.className='notary-grid';for(const row of pendingRows)grid.append(cardFor(row));section.append(heading,hint,grid);$('notary-cards').append(section);
+  }
   if(!selected.length){const empty=document.createElement('p');empty.className='card hint';empty.dataset.notaryEmpty='true';empty.textContent=cacheError?'缓存暂不可用，尚不能确认是否存在匹配公证；可稍后刷新或手动独立核验。':cachedView===JSON.stringify(opts)?'当前没有匹配的完整公证记录。扫描进度统计信箱消息（包括图片分块），不代表完整公证数量。若之前只提交了部分图片分块，请返回“内容公证”继续原来的公证，最后还需签署并提交公证声明。':'正在加载缓存中的公证记录…';$('notary-cards').append(empty);}
-  for(const row of selected){const entry=entries.get(notaryKey(row.location));if(!entry)continue;const card=document.createElement('article');card.className='card notary-record';card.dataset.notaryId=row.id;
+  for(const row of selected)$('notary-cards').append(cardFor(row));
+  function cardFor(row){const entry=entries.get(notaryKey(row.location));const card=document.createElement('article');card.className='card notary-record';card.dataset.notaryId=row.id;
    const badge=document.createElement('span');badge.className='badge';badge.textContent=statusText(entry);
    const title=document.createElement('h3');title.textContent=row.id;const owner=document.createElement('p');owner.textContent='声明容器 '+row.owner.replace(/\.tape$/,'');const date=document.createElement('p');date.className='hint';date.textContent=(entry.bundle?'链上时间 ':'声明时间（尚未链上核验） ')+new Date(row.timestamp).toLocaleString()+' · 链 '+row.location.chainId;
-   card.append(badge,title,owner,date);preview(card,entry);const hash=document.createElement('p');hash.className='mono';hash.textContent='SHA-256 '+row.hash;const button=document.createElement('button');button.className='button secondary';button.textContent='查看公证详情';button.onclick=()=>{void showDetail(row.location);};card.append(hash,button);$('notary-cards').append(card);
+   card.append(badge,title,owner,date);preview(card,entry);const hash=document.createElement('p');hash.className='mono';hash.textContent='SHA-256 '+row.hash;const button=document.createElement('button');button.className='button secondary';button.textContent='查看公证详情';button.onclick=()=>{void showDetail(row.location);};card.append(hash,button);return card;
   }
   $('notary-page').textContent='第 '+page+' / '+pages+' 页 · '+(audit?.complete?'独立核验快照':'目前可见')+' '+total+' 条';$('notary-prev').disabled=page<=1;$('notary-next').disabled=page>=pages;
-  if(tab==='search')$('notary-query-result').textContent=!searchHash?'请先输入内容并查询。':total?'找到 '+total+' 条相同内容的归属声明，请查看各条链上核验状态。':audit?.complete?'截至手动核验快照，未发现相同 SHA-256 的有效公证。':'缓存尚未收录相同内容；服务器继续核验，不能据此断言全链没有公证。';
+  if(tab==='search')$('notary-query-result').textContent=(!searchHash?'请先输入内容并查询。':total?'找到 '+total+' 条相同内容的归属声明，请查看各条链上核验状态。':audit?.complete?'截至手动核验快照，未发现相同 SHA-256 的有效公证。':'缓存尚未收录相同内容；服务器继续核验，不能据此断言全链没有公证。')+(pendingRows.length?' 本机另有 '+pendingRows.length+' 条已提交记录等待缓存收录，详见单独列表。':'');
   const states=audit?.states||Object.entries(cacheScans).map(([chain,s])=>({chain,...s}));
   $('notary-audit').textContent=(audit?'手动独立核验快照。':'缓存优先展示，服务器后台核验。')+states.map(s=>' 链 '+s.chain+'：已核对 '+(s.checked||0)+'/'+(s.total||0)+' 条信箱消息（含分块）'+(s.complete?'，已比对至区块 '+s.head.number:s.error?'，后台重试中':'，处理中')).join('；');
   if(cacheError)$('notary-audit').textContent+=' 缓存暂不可用，保留本机记录；可手动独立核验。';
