@@ -16,6 +16,17 @@ test('normal recovery returns normally and does not later abort',async()=>{
  let signal;const progress=[];assert.equal(await withRecoveryDeadline(async scope=>{signal=scope.signal;scope.report('核验完成');return 7;},{timeoutMs:20,onProgress:s=>progress.push(s)}),7);
  await new Promise(r=>setTimeout(r,25));assert.equal(signal.aborted,false);assert.deepEqual(progress,['核验完成']);
 });
+test('explicit cancellation stops recovery and prevents its delayed write',async()=>{
+ const controller=new AbortController();let release,started,writes=0;
+ const gate=new Promise(r=>release=r),ready=new Promise(r=>started=r);
+ const task=withRecoveryDeadline(async({signal})=>{started();await gate;signal.throwIfAborted();writes++;},{signal:controller.signal});
+ await ready;controller.abort(new DOMException('Cancel recovery','AbortError'));
+ await assert.rejects(task,e=>e.name==='AbortError');release();await new Promise(r=>setTimeout(r,5));assert.equal(writes,0);
+});
+test('already cancelled recovery does not start RPC work',async()=>{
+ const controller=new AbortController();controller.abort();let calls=0;
+ await assert.rejects(withRecoveryDeadline(async()=>{calls++;},{signal:controller.signal}),e=>e.name==='AbortError');assert.equal(calls,0);
+});
 test('cancelled RPC does not retry or probe more fallback endpoints',async()=>{
  const abort=new DOMException('Cancelled recovery','AbortError'),net={chainId:196,rpcs:['https://a.example','https://b.example'],rpcFallbacks:{'https://a.example':['https://c.example']}};
  let sends=0;const transport=withRpcFallback([net],async()=>{sends++;throw abort;}),pair=new RpcPair(net,transport);

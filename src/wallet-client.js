@@ -32,11 +32,11 @@ export async function inspectWallet({chainId,wallet,name},{signal,readContext,on
  const policy=validateWalletPolicy({chainId:String(chainId),wallet,name:identity.name,circuit:s.circuit,circuitTokenId:s.circuitTokenId,container:s.container,transactionSigner:s.transactionSigner,notarySigner:s.notarySigner});
  await r.ctx.assert();return {policy,nonce:s.nonce,active:s.active,paused:s.paused,ownerChanged:identity.holder.toLowerCase()!==s.notarySigner.toLowerCase(),currentHolder:identity.holder};
 }
-export async function tokenDetails(policy,asset=ZeroAddress){
- const r=await reader(policy.chainId);asset=walletAddress(asset,{zero:true});let result;
+export async function tokenDetails(policy,asset=ZeroAddress,{signal}={}){
+ const r=await reader(policy.chainId,{signal});asset=walletAddress(asset,{zero:true});let result;
  if(asset===ZeroAddress){result={asset,decimals:18,symbol:policy.chainId==='196'?'OKB':policy.chainId==='56'?'BNB':'TEST',balance:BigInt(await r.read('eth_getBalance',[policy.wallet,r.block])).toString()};}
  else {if((await r.read('eth_getCode',[asset,r.block]))==='0x')throw Error('代币地址没有合约');const [d,b]=await Promise.all([r.call(asset,ERC20,'decimals'),r.call(asset,ERC20,'balanceOf',[policy.wallet])]);let symbol='ERC20';try{symbol=String((await r.call(asset,ERC20,'symbol'))[0]).slice(0,32);}catch{}const decimals=Number(d[0]);if(decimals>36)throw Error('不支持的代币精度');result={asset,decimals,symbol,balance:b[0].toString()};}
- await r.ctx.assert();return {...result,formattedBalance:formatUnits(result.balance,result.decimals)};
+ await r.ctx.assert();signal?.throwIfAborted();return {...result,formattedBalance:formatUnits(result.balance,result.decimals),blockNumber:BigInt(r.block).toString()};
 }
 export async function verifyProposalState(p){
  validateWalletProposal(p);const s=await inspectWallet(p.policy);
@@ -91,7 +91,7 @@ export async function walletSafety(policy,action){
 export async function recoverWalletTransaction(hash,options={}){
  if(!navigator.locks)throw Error('浏览器不支持安全恢复');
  return withRecoveryDeadline(async({signal,report})=>navigator.locks.request(prefix+'send',{ifAvailable:true},async lock=>{
-  if(!lock)throw Error('另一页面正在处理');const pending=pendingWalletTx();if(!pending)throw Error('没有待确认交易');if(pending.invalid)throw Error('待确认记录损坏，请保留原始浏览器数据并核对钱包活动，禁止重复发送');
+  if(!lock)throw Error('另一页面正在处理');signal.throwIfAborted();const pending=pendingWalletTx();if(!pending)throw Error('没有待确认交易');if(pending.invalid)throw Error('待确认记录损坏，请保留原始浏览器数据并核对钱包活动，禁止重复发送');
   hash=hash||pending.hash;if(!/^0x[a-fA-F0-9]{64}$/.test(hash||''))throw Error('请从钱包活动复制完整交易哈希');
   report('读取链 '+pending.chainId+' 的核验区块');const r=await reader(pending.chainId,{signal});report('查询部署 / 执行交易');
   const tx=await r.ctx.rpc(pending.chainId).agree('eth_getTransactionByHash',[hash],v=>v?{hash:v.hash?.toLowerCase(),from:v.from?.toLowerCase(),to:v.to?.toLowerCase()||null,input:(v.input||v.data)?.toLowerCase(),value:toQuantity(v.value),blockHash:v.blockHash?.toLowerCase()||null}:null);if(!tx)throw Error('节点尚未找到交易，请保留记录稍后核对');

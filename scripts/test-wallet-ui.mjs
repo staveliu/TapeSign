@@ -15,7 +15,7 @@ async function submitted(page){await page.waitForFunction(()=>JSON.parse(localSt
 async function recover(page){await page.locator('#wallet-recover').click();await page.waitForFunction(()=>!localStorage.getItem('tapesign-wallet-v1:pending'));await ready(page);}
 async function completed(page,kind){await page.waitForFunction(k=>!localStorage.getItem('tapesign-wallet-v1:pending')&&JSON.parse(localStorage.getItem('tapesign-wallet-v1:history')||'[]')[0]?.details.kind===k,kind);await ready(page);}
 try{
- const page=await browser.newPage({viewport:{width:1280,height:1000}}),dialogs=[];page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>{dialogs.push(d.message());return d.accept();});
+ const context=await browser.newContext({viewport:{width:1280,height:1000}}),page=await context.newPage(),dialogs=[];page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>{dialogs.push(d.message());return d.accept();});
  let receiptsOffline=true,sends=0;page.on('request',request=>{if(request.url().endsWith('/demo/wallet')&&request.postDataJSON()?.method==='eth_sendTransaction')sends++;});await page.route('**/demo/rpc',async route=>{if(receiptsOffline&&route.request().postDataJSON().method==='eth_getTransactionReceipt')return route.fulfill({status:503,json:{error:'Simulated receipt delay'}});return route.continue();});
  await page.goto(demo.url+'/#wallet/create');await page.waitForSelector('#wallet-deploy');
  assert.equal(await page.locator('#wallet-controller').inputValue(),'');
@@ -64,6 +64,24 @@ try{
  await lost.reload();await lost.waitForSelector('#wallet-pending');assert.equal(await lost.locator('#wallet-deploy').isDisabled(),true);assert.match(await lost.locator('#wallet-status').textContent(),/未取得交易哈希/);assert.match(await lost.locator('#wallet-status').textContent(),/没有进行自动查链/);assert.equal(lostTx.sends,1);
  await lost.locator('#wallet-recover-hash').fill(demo.f.token.deploymentTransaction().hash);await lost.locator('#wallet-recover').click();await lost.waitForFunction(()=>document.querySelector('#wallet-pending-status').textContent.includes('不匹配'));assert.ok(await lost.evaluate(()=>localStorage.getItem('tapesign-wallet-v1:pending')));assert.equal(lostTx.sends,1);
  await lost.locator('#wallet-recover-hash').fill(lostTx.hash);await recover(lost);await lost.waitForSelector('#wallet-proposal-view');assert.equal(new URL(lost.url()).hash,'#wallet/sign');assert.equal(lostTx.sends,1);await lost.close();
+ // Only the current proposal can be cleared. Wallets, pending transaction,
+ // balance and operation history must survive, including in another tab.
+ const sibling=await page.context().newPage();sibling.on('pageerror',e=>errors.push(e.message));await sibling.goto(demo.url+'/#wallet/sign');await sibling.waitForSelector('#wallet-clear-proposal');await ready(sibling);
+ const latestDeployment=await page.evaluate(()=>JSON.parse(localStorage.getItem('tapesign-wallet-v1:history'))[0]);
+ await page.evaluate(p=>{localStorage.setItem('tapesign-wallet-v1:pending',JSON.stringify({...p,hash:null}));localStorage.setItem('tapesign-v2:clear-test-contract','keep-contract');localStorage.setItem('tapesign-v2:clear-test-notary','keep-notary');localStorage.setItem('unrelated-test','keep-other');},latestDeployment);
+ await page.reload();await page.waitForSelector('#wallet-clear-proposal');await ready(page);
+ assert.equal(await page.locator('#wallet-reset').count(),0);
+ for(const tab of ['create','wallets','transfer']){await page.locator('[data-wallet-tab='+tab+']').click();assert.equal(await page.locator('#wallet-clear-proposal').isVisible(),false);}
+ await page.locator('[data-wallet-tab=sign]').click();assert.equal(await page.locator('#wallet-clear-proposal').isVisible(),true);
+ const beforeClear=await page.evaluate(()=>Object.fromEntries(Object.keys(localStorage).filter(k=>k!=='tapesign-wallet-v1:proposal'&&k!=='tapesign-wallet-proposal-clear-v1').map(k=>[k,localStorage.getItem(k)]))),sendsBeforeClear=sends;
+ assert.ok(await page.evaluate(()=>localStorage.getItem('tapesign-wallet-v1:proposal')));
+ await page.locator('#wallet-clear-proposal').click();await page.waitForFunction(()=>document.querySelector('#wallet-clear-status').textContent.includes('当前提案及签名已清空'));
+ assert.equal(new URL(page.url()).hash,'#wallet/sign');assert.equal(await page.evaluate(()=>localStorage.getItem('tapesign-wallet-v1:proposal')),null);assert.equal(await page.locator('#wallet-proposal-json').inputValue(),'');assert.equal(await page.locator('#wallet-proposal-view').isVisible(),false);assert.equal(await page.locator('#wallet-share-url').inputValue(),'');assert.equal(await page.locator('#wallet-execute').isDisabled(),true);assert.equal(await page.locator('#wallet-deploy').isDisabled(),true);
+ assert.deepEqual(await page.evaluate(()=>Object.fromEntries(Object.keys(localStorage).filter(k=>k!=='tapesign-wallet-v1:proposal'&&k!=='tapesign-wallet-proposal-clear-v1').map(k=>[k,localStorage.getItem(k)]))),beforeClear);
+ await sibling.waitForFunction(()=>document.querySelector('#wallet-clear-status').textContent.includes('当前提案及签名已清空'));assert.equal(await sibling.locator('#wallet-proposal-view').isVisible(),false);assert.equal(await sibling.locator('#wallet-sign-a').isDisabled(),true);await sibling.close();
+ await page.reload();await page.waitForSelector('#wallet-clear-proposal');assert.equal(await page.evaluate(()=>localStorage.getItem('tapesign-wallet-v1:proposal')),null);assert.equal(await page.locator('#wallet-pending').isVisible(),true);
+ await page.locator('#wallet-recover-hash').fill(latestDeployment.hash);await recover(page);assert.equal(await page.evaluate(()=>localStorage.getItem('tapesign-wallet-v1:proposal')),null);assert.match(await page.locator('#wallet-status').textContent(),/当前提案已清空/);assert.equal(sends,sendsBeforeClear);assert.equal(await wallet.active(),true);
  assert.deepEqual(errors,[]);
+ console.log('Proposal-only clear passed: button only in signing tab; proposal removed across tabs; wallets, pending, history, container and unrelated data preserved exactly; no sends; recovery remains usable without recreating cleared proposal.');
  console.log('Wallet browser EVM flow passed: automatic receipt recovery after submission/reload/RPC outage, no duplicate sends, lost-hash intent retained, wrong recovery hash rejected, cross-device activation, native/ERC20 transfers, tamper/replay rejection, pause/resume, anchors and mobile. Local chain 31337 only.');
 }finally{await browser.close();await demo.close();}

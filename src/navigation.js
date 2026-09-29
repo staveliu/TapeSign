@@ -5,13 +5,13 @@ export function tabHash(product,tab){
 }
 export function readTabRoute(value){
  const url=new URL(typeof value==='string'?value:value.href);
- const match=/^#([a-z]+)\/([a-z]+)$/.exec(url.hash);
+ const match=/^#([a-z]+)\/([a-z]+)$/.exec(url.hash.split('?')[0]);
  if(match&&tabs[match[1]]?.includes(match[2]))return {product:match[1],tab:match[2]};
  if(url.searchParams.get('view')==='notary'||url.searchParams.has('notary'))return {product:'notary',tab:'create'};
  return {product:'contract',tab:url.searchParams.has('tx')?'open':'create'};
 }
 export function writeTabRoute(product,tab,{replace=false}={}){
  const url=new URL(window.location.href),hash=tabHash(product,tab);
- if(url.hash===hash)return;
+ if(url.hash===hash||(hash==='#wallet/sign'&&url.hash.startsWith(hash+'?')))return;
  url.hash=hash;window.history[replace?'replaceState':'pushState'](null,'',url.href);
 }

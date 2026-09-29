@@ -26,7 +26,11 @@
 
 资产存放在新部署的双签合约钱包中，交易控制方和 TapeOut 容器持有人分别签名后，合约才允许转出。给原普通钱包公证一条声明不会改变它本来的转账规则。绑定权以合约策略和双签激活事件为准，不由缓存记录的排序决定。
 
-四个入口：创建钱包 #wallet/create、我的钱包 #wallet/wallets、发起转账 #wallet/transfer、共同签署 #wallet/sign。部署确认后自动进入激活签署；两方通过 JSON 提案交换签名，支持同链原生币 / ERC20、撤销 nonce、单方紧急暂停和双签恢复。顶部容器选择全站共用。
+四个入口：创建钱包 #wallet/create、我的钱包 #wallet/wallets、发起转账 #wallet/transfer、共同签署 #wallet/sign。部署确认后自动进入激活签署；两方通过提案链接或 JSON 文件交换签名，支持同链原生币 / ERC20、撤销 nonce、单方紧急暂停和双签恢复。顶部容器选择全站共用。
+
+**链接接力签署**：提案与已有签名以 Base64URL 放在 `#wallet/sign?proposal=…&role=…` 中。接收者打开链接后只读核验并导入，页面显示本次应使用的完整钱包地址；交易控制方签完，将更新后的链接发给公证容器持有人。两方签齐后可直接提交执行，也可把双签链接发回发起方代付手续费。打开链接不会自动连接钱包、签名或发送交易。跨设备分享时需要可公开访问的客户端地址，不能直接使用本机 `127.0.0.1` 链接。
+
+**余额和查询**：显示新公证钱包合约地址的 BNB / OKB 余额、读取区块和时间，支持刷新；RPC 故障显示暂不可用，不显示为零。提供对应链的 OKLink 钱包地址查询入口。“共同签署”页提供“清空当前提案及签名”，只清理当前提案，保留钱包列表、余额、待确认交易和操作历史；没有清空全部钱包记录的入口。详见 [公证钱包指南](docs/WALLET.md)。
 
 ~~~sh
 npm ci
@@ -187,7 +191,7 @@ npm run build:cache
 npm run check:public
 ~~~
 
-浏览器测试需先启动 npm run dev；默认使用已安装的 Microsoft Edge。也可先运行 npx playwright install chromium，再设置 PLAYWRIGHT_CHANNEL=chromium 使用 Playwright Chromium。
+通用客户端浏览器测试需先启动 npm run dev；公证钱包的 test:wallet-ui 和 test:wallet-links 会自行启动隔离的本地模拟服务。默认使用已安装的 Microsoft Edge；也可先运行 npx playwright install chromium，再设置 PLAYWRIGHT_CHANNEL=chromium 使用 Playwright Chromium。
 
 ~~~sh
 npm run test:ui
@@ -198,10 +202,13 @@ npm run test:navigation
 npm run test:activation
 npm run test:wallet
 npm run test:wallet-ui
+npm run test:wallet-links
 node scripts/test-publication-ui.mjs
 ~~~
 
 单元测试覆盖合同号、公证编号、签名篡改/重放、跨链引用、载荷限制、核验、RPC 回退、游标、缓存及公证全量索引遗漏/重组。浏览器测试覆盖共享容器、手动输入、公证隐私和跨刷新分块续传，使用合成合同并模拟钱包/链边界，不发送主网交易，不代表真实链端到端验收。只读真实合同检查必须主动提供交易哈希，结果保存在被忽略的 .local/ 中。
+
+公证钱包测试在本地 EVM 执行部署、双签激活及转账，并用独立浏览器会话测试链接接力、角色校验、已有签名合并、余额读取失败、OKLink 地址和手机布局。提案清空测试检查钱包列表、待确认交易、历史记录及容器选择完整保留，且不会发交易或让旧提案重新写回。测试不使用真实资产，也不替代独立安全审计。
 
 ## 项目结构
 
