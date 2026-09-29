@@ -7,7 +7,7 @@ if(process.exitCode)throw Error('Public source check failed');
 const root=fileURLToPath(new URL('../',import.meta.url));
 const release=JSON.parse(fs.readFileSync(path.join(root,'dist/release.json'),'utf8'));
 const out=path.join(root,'release',release.release.slice(2,14));fs.mkdirSync(out,{recursive:true});
-for(const dir of ['src','config','scripts','server','test','docs','dist'])fs.cpSync(path.join(root,dir),path.join(out,dir),{recursive:true,filter:file=>!file.endsWith('cache.bundle.mjs')});
+for(const dir of ['src','config','scripts','server','test','docs','contracts','dist'])fs.cpSync(path.join(root,dir),path.join(out,dir),{recursive:true,filter:file=>!file.endsWith('cache.bundle.mjs')});
 for(const file of ['README.md','LICENSE','SECURITY.md','CONTRIBUTING.md','THIRD_PARTY_NOTICES.md','package.json','package-lock.json','index.html','publish.html','activate.html','.gitignore','.gitattributes'])fs.copyFileSync(path.join(root,file),path.join(out,file));
 const portable=path.join(root,'.local',`TapeSign-${release.release.slice(2,14)}-standalone.html`);
 if(fs.existsSync(portable))fs.copyFileSync(portable,path.join(out,'TapeSign-standalone.html'));

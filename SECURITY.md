@@ -28,7 +28,17 @@ config/networks.json and config/app.json are embedded in browser builds. Any RPC
 
 .gitignore and npm run check:public provide additional checks, but do not replace review of staged changes or guarantee detection of every secret. Generated dist/, release/, server bundles and .local/ artifacts are excluded because they can embed deployment settings or real evidence. Rotate credentials if they were published; deleting a later commit does not erase repository history.
 
-## Operating the cache
+## Experimental notary wallet
+
+TapeNotaryWallet is a new, non-upgradeable, same-chain 2/2 asset account. Both the transaction signer and the recorded container holder must sign activation, every transfer and resumption. A single signer can pause or cancel the current nonce. Keys should be independently controlled; there is no recovery administrator, rotation, arbitrary-call, approval, module or upgrade path in this prototype. Losing a signer may lock funds permanently. Do not treat prototype tests as an audit.
+
+The wallet checks the current NFT holder against the recorded signer on every authorized action. Transferring the NFT blocks those actions; transferring it back restores eligibility. It does not track transfer-away-and-back history. Contracts accept ERC-1271 signatures, which may be revoked by the signer contract. This release uses browser EOA signing buttons and JSON import for externally generated contract signatures.
+
+The client pins exact deployed runtime code, authenticates the TapeOut identity and checks policy, nonce, deadline and signatures. It reads current state without full historical scanning. No centralized cache entry grants permission to spend. The Solidity constructor verifies the NFT/container tuple but does not embed an official TapeOut factory registry; runtime code alone is not proof of an official container. Verify identity and fixed policy as well.
+
+The local demo has a separate loopback-only Vite entry and random temporary accounts on chain 31337, with a mock container. Those keys and mock RPC replacements are absent from production builds. Never publish or expose the demo server. See docs/WALLET.md for supported assets, transaction recovery and the complete limitations.
+
+## Operating the cache service
 
 Bind to loopback behind HTTPS, run as the dedicated unprivileged user, keep the data directory private and back it up. No signing keys are required. POST /notify only queues a chain ID and transaction hash; the server fetches and verifies the evidence itself. Discovery from a single node never directly creates a verified contract.
 

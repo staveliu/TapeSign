@@ -4,7 +4,7 @@
 <body>
   <header class="header"><a class="brand" href="./"><span class="brand-mark" aria-hidden="true">T<span>↗</span></span><span>TapeSign<small>链上公证处</small></span></a><div class="header-right"><span id="current-container-label" class="current-container-label missing" role="status" aria-live="polite">请先选择容器</span><button id="choose-my-container" type="button" class="button secondary small">选择我的容器</button><button id="connect" class="button secondary small">连接钱包</button></div></header>
   <main>
-    <nav class="product-nav" aria-label="产品功能"><button id="product-contract" class="active">链上签约</button><button id="product-notary">链上公证</button></nav>
+    <nav class="product-nav" aria-label="产品功能"><button id="product-contract" class="active">链上签约</button><button id="product-notary">链上公证</button><button id="product-wallet">公证钱包 <small>试验版</small></button></nav>
     <div id="contract-workspace">
     <section class="hero"><div><div class="eyebrow">YOUR AGREEMENT. YOUR PROOF.</div><h1>让每一份约定，<br><em>有据可循。</em></h1><p>写下条款，亲笔签署，把双方的承诺保存在链上。<br>一份合同，一个链接，随时独立核验。</p></div><div class="hero-note"><span class="note-number">01 — 03</span><div>起草合同 <span>→</span> 双方签署 <span>→</span> 链上归档</div><small>正文与双签名，完整收录到一笔归档交易。</small></div></section>
     <div class="workspace-top"><nav class="tabs" aria-label="工作区"><button id="tab-create" class="active" data-tab="create">发起合同</button><button id="tab-open" data-tab="open">打开 / 核验</button><button id="tab-history" data-tab="history">我的合同</button></nav><span class="version">双人签署 · V2</span></div>
@@ -30,6 +30,7 @@
     <section id="share-panel" class="card share-card" hidden><span class="badge">交易已提交</span><h2 id="share-title">把合同链接发给对方</h2><p id="share-description" class="hint"></p><div class="input-row"><input id="share-url" readonly aria-label="合同分享链接"><button id="copy" class="button primary">复制链接</button><button id="check-submitted" class="button secondary">核验这笔交易</button></div><p id="share-hash" class="mono"></p><p id="persistence-warning" class="hint" hidden></p></section>
     </div>
     <div id="notary-workspace" hidden></div>
+    <div id="wallet-workspace" hidden></div>
     <footer><span>TapeSign <span class="footer-dot">/</span> 链上公证处 · 内容由你持有</span><div><span id="release-label">独立校验 · 无业务服务器</span><a href="./release.json" target="_blank" rel="noopener">版本清单 ↗</a></div></footer>
   </main>
   <dialog id="container-picker" aria-labelledby="container-picker-title">

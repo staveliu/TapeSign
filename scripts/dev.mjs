@@ -9,7 +9,7 @@ import {releaseId} from './release.mjs';
 import {RPC_UNAVAILABLE,safeRpcMessage} from '../src/rpc-http.js';
 const root=fileURLToPath(new URL('../',import.meta.url)),port=Number(process.env.TAPESIGN_DEV_PORT||18740),origin=`http://127.0.0.1:${port}`;
 const net=await serverTransport();
-const allowed=new Set(['eth_chainId','eth_getBlockByNumber','eth_getCode','eth_getStorageAt','eth_call','eth_getLogs','eth_getTransactionReceipt','eth_getTransactionByHash']);
+const allowed=new Set(['eth_chainId','eth_getBlockByNumber','eth_getCode','eth_getBalance','eth_getStorageAt','eth_call','eth_getLogs','eth_getTransactionReceipt','eth_getTransactionByHash']);
 const server=await createServer({configFile:false,root,base:'/',publicDir:false,define:{__RELEASE__:JSON.stringify(releaseId(root))},server:{host:'127.0.0.1',port,strictPort:true,fs:{allow:[root]}},plugins:[{name:'tapesign-local-readonly',configureServer(vite){vite.middlewares.use(async(req,res,next)=>{
   const url=new URL(req.url,origin);if(!url.pathname.startsWith('/api/')&&!url.pathname.startsWith('/rpc/')&&!url.pathname.startsWith('/cache/')&&url.pathname!=='/release.json')return next();
   function reply(code,value){res.statusCode=code;res.setHeader('Content-Type','application/json');res.setHeader('Cache-Control','no-store');res.end(JSON.stringify(value));}

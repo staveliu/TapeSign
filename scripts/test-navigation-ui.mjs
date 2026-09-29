@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 const base=process.env.TEST_BASE_URL||'http://127.0.0.1:18740',channel=process.env.PLAYWRIGHT_CHANNEL||'msedge';
 const browser=await chromium.launch({headless:true,...(channel==='chromium'?{}:{channel})});
 const routes=[['contract','create','#tab-create','#panel-create'],['contract','open','#tab-open','#panel-open'],['contract','history','#tab-history','#panel-history'],['notary','create','[data-notary-tab=create]','#notary-create'],['notary','search','[data-notary-tab=search]','#notary-search'],['notary','public','[data-notary-tab=public]','#notary-public']];
+routes.unshift(...['create','wallets','transfer','sign'].map(tab=>['wallet',tab,'[data-wallet-tab='+tab+']','#wallet-'+tab]));
 try{
  const page=await browser.newPage({viewport:{width:1280,height:900}}),errors=[],rpc=[];
  page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>{if(r.url().includes('/rpc/'))rpc.push(r.url());});
@@ -25,5 +26,5 @@ try{
  const box=await page.locator('#current-container-label').boundingBox();assert.ok(box.x+box.width>350&&box.y<70,'Missing container warning belongs in upper right');assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
  await page.evaluate(()=>localStorage.setItem('tapesign-v2:current-container',JSON.stringify('4.2.204.tape')));await page.reload();await page.waitForSelector('#notary-submit',{state:'attached'});assert.equal(await page.locator('#current-container-label').textContent(),'当前容器 4.2.204');assert.equal(await page.locator('#current-container-label').evaluate(el=>el.classList.contains('missing')),false);
  await page.evaluate(()=>localStorage.removeItem('tapesign-v2:current-container'));await page.reload();await page.waitForSelector('#notary-submit',{state:'attached'});assert.equal(await page.locator('#current-container-label').textContent(),'请先选择容器');assert.equal(await page.locator('#current-container-label').evaluate(el=>getComputedStyle(el).color),'rgb(192, 0, 0)');
- assert.deepEqual(errors,[]);assert.equal(rpc.length,0);console.log('Navigation browser checks passed: all six tab hashes and refresh, history back/forward, direct anchors, legacy view query, query preservation, selected/unselected container warning and mobile upper-right layout. No chain or wallet requests.');
+ assert.deepEqual(errors,[]);assert.equal(rpc.length,0);console.log('Navigation browser checks passed: all ten tab hashes and refresh, history back/forward, direct anchors, legacy view query, query preservation, selected/unselected container warning and mobile upper-right layout. No chain or wallet requests.');
 }finally{await browser.close();}
