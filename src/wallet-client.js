@@ -2,6 +2,7 @@ import {Interface,ContractFactory,ZeroAddress,keccak256,toQuantity,formatUnits} 
 import artifact from './wallet-artifact.json' with {type:'json'};
 import {context,resolveIdentity,provider} from './rpc.js';
 import {validateWalletPolicy,validateWalletProposal,walletAddress,walletTypedData,walletDigest,verifyWalletEOA} from './wallet-protocol.js';
+import {withRecoveryDeadline} from './wallet-recovery.js';
 const ABI=new Interface(artifact.abi),ERC20=new Interface(['function decimals() view returns(uint8)','function symbol() view returns(string)','function balanceOf(address) view returns(uint256)']),SIG=new Interface(['function isValidSignature(bytes32,bytes) view returns(bytes4)']);
 const prefix='tapesign-wallet-v1:',pendingKey=prefix+'pending';
 function readArray(key){try{const a=JSON.parse(localStorage.getItem(prefix+key)||'[]');return Array.isArray(a)?a:[];}catch{return [];}}
@@ -18,15 +19,15 @@ export async function walletSession(chainId,expected){
  return {p,from:accounts[0].toLowerCase()};
 }
 async function assertSession(p,chainId,from){const a=await p.request({method:'eth_accounts'});if(a[0]?.toLowerCase()!==from||BigInt(await p.request({method:'eth_chainId'}))!==BigInt(chainId))throw Error('签名期间账户或网络变化，请重新核验');}
-async function reader(chainId){const ctx=context(),h=await ctx.head(chainId,'latest'),rpc=ctx.rpc(chainId),block=toQuantity(h.number);
+async function reader(chainId,{signal}={}){const ctx=context(undefined,undefined,{signal}),h=await ctx.head(chainId,'latest'),rpc=ctx.rpc(chainId),block=toQuantity(h.number);
  return {ctx,block,read:(method,params)=>rpc.agree(method,params,v=>typeof v==='string'?v.toLowerCase():v),call:async(address,abi,method,args=[])=>abi.decodeFunctionResult(method,await rpc.agree('eth_call',[{to:address,data:abi.encodeFunctionData(method,args)},block],v=>v.toLowerCase()))};
 }
-export async function inspectWallet({chainId,wallet,name}){
- wallet=walletAddress(wallet);const r=await reader(chainId);
+export async function inspectWallet({chainId,wallet,name},{signal,readContext,onProgress=()=>{}}={}){
+ wallet=walletAddress(wallet);const r=readContext||await reader(chainId,{signal});onProgress('核验新钱包合约代码');
  const code=await r.read('eth_getCode',[wallet,r.block]);if(keccak256(code)!==keccak256(artifact.runtime))throw Error('钱包合约代码与本版不符，禁止签名和转账');
  const fields=['circuit','circuitTokenId','container','transactionSigner','notarySigner','nonce','policyVersion','active','paused'];
  const values=await r.call(wallet,ABI,'walletState'),s=Object.fromEntries(fields.map((f,i)=>[f,typeof values[i]==='bigint'?values[i].toString():values[i]]));
- if(s.policyVersion!=='1')throw Error('钱包权限版本不符');const identity=await resolveIdentity(name,r.ctx);
+ if(s.policyVersion!=='1')throw Error('钱包权限版本不符');onProgress('核验 TapeOut 容器与电路持有人');const identity=await resolveIdentity(name,r.ctx);
  if(identity.chainId!==String(chainId)||identity.processor.toLowerCase()!==s.circuit.toLowerCase()||identity.tokenId!==s.circuitTokenId||identity.container.toLowerCase()!==s.container.toLowerCase())throw Error('钱包绑定与当前容器身份不符');
  const policy=validateWalletPolicy({chainId:String(chainId),wallet,name:identity.name,circuit:s.circuit,circuitTokenId:s.circuitTokenId,container:s.container,transactionSigner:s.transactionSigner,notarySigner:s.notarySigner});
  await r.ctx.assert();return {policy,nonce:s.nonce,active:s.active,paused:s.paused,ownerChanged:identity.holder.toLowerCase()!==s.notarySigner.toLowerCase(),currentHolder:identity.holder};
@@ -87,19 +88,20 @@ export async function walletSafety(policy,action){
  const {from}=await walletSession(policy.chainId);if(![s.policy.transactionSigner,s.policy.notarySigner].some(x=>x.toLowerCase()===from))throw Error('只有原签名方可暂停或撤销');
  return broadcast(policy.chainId,from,{to:policy.wallet,data:ABI.encodeFunctionData(action,action==='cancel'?[s.nonce]:[]),value:'0x0'},{kind:action,policy},()=>inspectWallet(policy));
 }
-export async function recoverWalletTransaction(hash){
+export async function recoverWalletTransaction(hash,options={}){
  if(!navigator.locks)throw Error('浏览器不支持安全恢复');
- return navigator.locks.request(prefix+'send',{ifAvailable:true},async lock=>{
+ return withRecoveryDeadline(async({signal,report})=>navigator.locks.request(prefix+'send',{ifAvailable:true},async lock=>{
   if(!lock)throw Error('另一页面正在处理');const pending=pendingWalletTx();if(!pending)throw Error('没有待确认交易');if(pending.invalid)throw Error('待确认记录损坏，请保留原始浏览器数据并核对钱包活动，禁止重复发送');
   hash=hash||pending.hash;if(!/^0x[a-fA-F0-9]{64}$/.test(hash||''))throw Error('请从钱包活动复制完整交易哈希');
-  const r=await reader(pending.chainId),tx=await r.ctx.rpc(pending.chainId).agree('eth_getTransactionByHash',[hash],v=>v?{hash:v.hash,from:v.from,to:v.to,input:v.input||v.data,value:v.value,blockHash:v.blockHash}:null);if(!tx)throw Error('节点尚未找到交易，请保留记录稍后核对');
+  report('读取链 '+pending.chainId+' 的核验区块');const r=await reader(pending.chainId,{signal});report('查询部署 / 执行交易');
+  const tx=await r.ctx.rpc(pending.chainId).agree('eth_getTransactionByHash',[hash],v=>v?{hash:v.hash?.toLowerCase(),from:v.from?.toLowerCase(),to:v.to?.toLowerCase()||null,input:(v.input||v.data)?.toLowerCase(),value:toQuantity(v.value),blockHash:v.blockHash?.toLowerCase()||null}:null);if(!tx)throw Error('节点尚未找到交易，请保留记录稍后核对');
   const q=pending.request;if(tx.from.toLowerCase()!==q.from.toLowerCase()||(tx.to||'').toLowerCase()!==(q.to||'').toLowerCase()||(tx.input||tx.data||'0x').toLowerCase()!==q.data.toLowerCase()||BigInt(tx.value)!==BigInt(q.value||0))throw Error('交易与本机待确认操作不匹配');
-  pending.hash=hash.toLowerCase();store('pending',pending);const receipt=await r.ctx.rpc(pending.chainId).agree('eth_getTransactionReceipt',[hash],v=>v?{transactionHash:v.transactionHash,status:v.status,blockHash:v.blockHash,blockNumber:v.blockNumber,contractAddress:v.contractAddress,logs:(v.logs||[]).map(l=>({address:l.address,topics:l.topics,data:l.data,removed:!!l.removed}))}:null);if(!receipt)throw Error('交易已提交，尚未打包；无需重新发送');
+  signal.throwIfAborted();pending.hash=hash.toLowerCase();store('pending',pending);report('查询交易回执与执行结果');const receipt=await r.ctx.rpc(pending.chainId).agree('eth_getTransactionReceipt',[hash],v=>v?{transactionHash:v.transactionHash?.toLowerCase(),status:toQuantity(v.status),blockHash:v.blockHash?.toLowerCase(),blockNumber:toQuantity(v.blockNumber),contractAddress:v.contractAddress?.toLowerCase()||null,logs:(v.logs||[]).map(l=>({address:l.address.toLowerCase(),topics:l.topics.map(x=>x.toLowerCase()),data:l.data.toLowerCase(),removed:!!l.removed}))}:null);if(!receipt)throw Error('交易已提交，尚未打包；无需重新发送');
   if(receipt.transactionHash.toLowerCase()!==hash.toLowerCase()||receipt.blockHash!==tx.blockHash)throw Error('交易回执不一致');
   if(BigInt(receipt.blockNumber)>BigInt(r.block))throw Error('独立节点尚未同步到交易区块，请稍后核对；无需重发');
-  const block=await r.ctx.rpc(pending.chainId).agree('eth_getBlockByNumber',[receipt.blockNumber,false],v=>v?{hash:v.hash,number:v.number}:null);
+  report('核对交易所在区块');const block=await r.ctx.rpc(pending.chainId).agree('eth_getBlockByNumber',[receipt.blockNumber,false],v=>v?{hash:v.hash.toLowerCase(),number:toQuantity(v.number)}:null);
   if(!block||block.hash!==receipt.blockHash)throw Error('交易区块已变化，请稍后重新核验');await r.ctx.assert();
-  if(BigInt(receipt.status)===0n){store('history',[{...pending,failed:true},...readArray('history')].slice(0,100));localStorage.removeItem(pendingKey);throw Object.assign(Error('交易已在链上失败，可重新读取状态后再操作'),{code:'WALLET_TX_FAILED'});}
+  signal.throwIfAborted();if(BigInt(receipt.status)===0n){store('history',[{...pending,failed:true},...readArray('history')].slice(0,100));localStorage.removeItem(pendingKey);throw Object.assign(Error('交易已在链上失败，可重新读取状态后再操作'),{code:'WALLET_TX_FAILED'});}
   if(BigInt(receipt.status)!==1n)throw Error('交易状态无效');
   if(pending.details.kind!=='deploy'){
    const expected={Bind:'WalletActivated',Transfer:'TransferExecuted',Resume:'WalletResumed',cancel:'NonceCancelled',pause:'WalletPaused'}[pending.details.kind];
@@ -108,8 +110,8 @@ export async function recoverWalletTransaction(hash){
    if(pending.details.kind==='Transfer'&&event.args.digest!==pending.details.digest)throw Error('链上执行事件与签署提案不一致');
   }
   let policy=pending.details.policy;if(pending.details.kind==='deploy')policy={...policy,wallet:walletAddress(receipt.contractAddress)};
-  const state=await inspectWallet(policy);rememberWallet(state.policy);
+  const state=await inspectWallet(policy,{signal,readContext:r,onProgress:report});signal.throwIfAborted();rememberWallet(state.policy);
   store('history',[{...pending,policy:state.policy,blockNumber:receipt.blockNumber},...readArray('history')].slice(0,100));localStorage.removeItem(pendingKey);return {policy:state.policy,state,hash,kind:pending.details.kind,digest:pending.details.digest};
- });
+ }),options);
 }
 export function walletHistory(){return readArray('history');}

@@ -7,17 +7,19 @@ import { readRpcResponse, rpcTimeoutMs, rpcUnavailable } from './rpc-http.js';
 export { config, ABI, header };
 // Only our development service exposes /rpc. Portable builds on other local
 // static servers must keep working by contacting the configured RPCs directly.
-export const local = typeof location !== 'undefined' && ['127.0.0.1','localhost'].includes(location.hostname) && (location.port === '18740' || import.meta.env?.DEV === true);
-const send = async (url, body) => {
+export const local = typeof location !== 'undefined' && ['127.0.0.1','localhost'].includes(location.hostname) && location.port === '18740';
+const send = async (url, body, signal) => {
   const network = config.networks.find(n=>n.rpcs.includes(url));
   const target = local && network ? `/rpc/${network.chainId}/${network.rpcs.indexOf(url)}` : url;
   try {
-    const r = await fetch(target, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(rpcTimeoutMs(network,url,local))});
+    signal?.throwIfAborted();const timeout=AbortSignal.timeout(rpcTimeoutMs(network,url,local));
+    const r = await fetch(target, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:signal?AbortSignal.any([signal,timeout]):timeout});
     return await readRpcResponse(r,body.method);
-  } catch(e) { throw rpcUnavailable(e.message,{method:body.method}); }
+  } catch(e) { signal?.throwIfAborted();throw rpcUnavailable(e.message,{method:body.method}); }
 };
 const transport = local ? send : withRpcFallback(config.networks, send);
 export function context(customTransport = transport, onProgress = ()=>{}, {signal} = {}) {
+  if(signal&&customTransport===transport){const scoped=(url,body)=>send(url,body,signal);customTransport=local?scoped:withRpcFallback(config.networks,scoped);}
   const clients = new Map(), heads = new Map(), records = new Map();
   function rpc(chain) {
     const n = config.networks.find(n=>String(n.chainId) === String(chain));

@@ -34,6 +34,7 @@ export function withRpcFallback(networks,send,{cooldownMs=15000,now=Date.now,onF
         if(body.method==='eth_getBlockByNumber'&&(!result.result?.hash||!result.result?.number||!result.result?.timestamp))throw Error('Missing block header');
         cooldowns.delete(key(url));return result;
       }catch(error){
+        if(error.name==='AbortError')throw error;
         // The endpoint may embed an intentionally public key; don't put it in
         // errors, journal entries or user-facing diagnostics.
         last=`${new URL(url).hostname}: ${safeRpcMessage(error.message)}`;

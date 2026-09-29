@@ -64,7 +64,7 @@ export class RpcPair {
           try{header(j.result);}catch{throw Error('区块暂不可读：'+params[0]);}
         }
         return j.result;
-      } catch (e) { last=e; if(attempt<2) await new Promise(resolve=>setTimeout(resolve,500*2**attempt)); }
+      } catch (e) { if(e.name==='AbortError')throw e;last=e; if(attempt<2) await new Promise(resolve=>setTimeout(resolve,500*2**attempt)); }
     }
     if(last.code===RPC_UNAVAILABLE)throw last;
     throw Error(`${new URL(url).hostname} · ${method}: ${safeRpcMessage(last.message)}`);
